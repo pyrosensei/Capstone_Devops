@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devplane-redis
+  namespace: devplane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: devplane-redis
+  template:
+    metadata:
+      labels:
+        app: devplane-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi

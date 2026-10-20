@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devplane-worker
+  namespace: devplane
+  labels:
+    app: devplane-worker
+    app.kubernetes.io/name: devplane-worker
+    app.kubernetes.io/part-of: devplane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: devplane-worker
+  template:
+    metadata:
+      labels:
+        app: devplane-worker
+        app.kubernetes.io/name: devplane-worker
+        app.kubernetes.io/part-of: devplane
+    spec:
+      serviceAccountName: devplane
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: devplane-api:local
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "worker.main"]
+          envFrom:
+            - configMapRef:
+                name: devplane-config
+            - secretRef:
+                name: devplane-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+      terminationGracePeriodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: devplane-data
+        - name: tmp
+          emptyDir: {}

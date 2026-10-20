@@ -1,0 +1,12 @@
+DevPlane has been installed.
+
+API service:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "devplane.fullname" . }}-api {{ .Values.service.port }}:{{ .Values.service.port }}
+
+{{- if .Values.ingress.enabled }}
+Ingress host: {{ .Values.ingress.host }}
+{{- end }}
+
+Sign in with the bootstrap credentials from values.yaml (change them in a
+shared environment). Metrics are exposed at /metrics for Prometheus; logs are
+JSON on stdout for Loki/Fluentd.

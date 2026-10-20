@@ -1,0 +1,2 @@
+# Cloud stub — GKE + Cloud SQL.
+# Required from the user: GOOGLE_APPLICATION_CREDENTIALS JSON key and a GCP project id.

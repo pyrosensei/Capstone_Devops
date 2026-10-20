@@ -1,0 +1,83 @@
+---
+- name: Deploy DevPlane to a local kind cluster
+  hosts: local
+  gather_facts: true
+  vars:
+    repo_root: "{{ playbook_dir }}/../.."
+    kind_cluster_name: devplane-kind
+    image_name: devplane-api
+    image_tag: local
+    k8s_overlay: "{{ repo_root }}/kubernetes/overlays/dev"
+    install_ingress: true
+  tasks:
+    - name: Check for kubectl
+      ansible.builtin.command: kubectl version --client
+      register: kubectl_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check for kind
+      ansible.builtin.command: kind version
+      register: kind_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fail with a helpful message when kind/kubectl are missing
+      ansible.builtin.fail:
+        msg: "Install kubectl and kind first (ansible-playbook playbooks/site.yml --tags k8s-tools)."
+      when: kubectl_check.rc != 0 or kind_check.rc != 0
+
+    - name: Create kind cluster if absent
+      ansible.builtin.shell: |
+        set -e
+        if ! kind get clusters | grep -qx "{{ kind_cluster_name }}"; then
+          kind create cluster --name "{{ kind_cluster_name }}" --config "{{ repo_root }}/kubernetes/kind-config.yaml"
+        fi
+      args:
+        executable: /bin/bash
+      register: kind_create
+      changed_when: "'Creating cluster' in kind_create.stdout"
+
+    - name: Build the application image
+      ansible.builtin.command: docker build -t {{ image_name }}:{{ image_tag }} .
+      args:
+        chdir: "{{ repo_root }}"
+      changed_when: true
+
+    - name: Load the image into kind
+      ansible.builtin.command: kind load docker-image {{ image_name }}:{{ image_tag }} --name {{ kind_cluster_name }}
+      changed_when: true
+
+    - name: Install ingress-nginx
+      ansible.builtin.command: >-
+        kubectl apply -f
+        https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+      when: install_ingress
+      changed_when: true
+
+    - name: Wait for ingress-nginx
+      ansible.builtin.command: >-
+        kubectl -n ingress-nginx wait --for=condition=Available
+        deployment/ingress-nginx-controller --timeout=240s
+      when: install_ingress
+      changed_when: false
+
+    - name: Apply the kustomize overlay
+      ansible.builtin.command: kubectl apply -k {{ k8s_overlay }}
+      changed_when: true
+
+    - name: Wait for the API rollout
+      ansible.builtin.command: >-
+        kubectl -n devplane rollout status deploy/devplane-api --timeout=240s
+      changed_when: false
+
+    - name: Wait for the worker rollout
+      ansible.builtin.command: >-
+        kubectl -n devplane rollout status deploy/devplane-worker --timeout=240s
+      changed_when: false
+
+    - name: Show access instructions
+      ansible.builtin.debug:
+        msg:
+          - "Add '127.0.0.1 devplane.local' to /etc/hosts, then open http://devplane.local:8081"
+          - "Or port-forward: kubectl -n devplane port-forward svc/devplane-api 8000:80"

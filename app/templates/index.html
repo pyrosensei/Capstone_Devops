@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DevPlane Control Plane</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>DevPlane</h1>
+      <p>Self-hosted Internal Developer Platform</p>
+    </div>
+    <div id="whoami"></div>
+    <button id="logout" class="ghost" hidden>Log out</button>
+  </header>
+
+  <main>
+    <section id="login-panel">
+      <h2>Sign in</h2>
+      <form id="login-form">
+        <label>Email <input name="email" value="admin@devplane.local" required /></label>
+        <label>Password <input name="password" type="password" value="admin123" required /></label>
+        <button type="submit">Login</button>
+      </form>
+      <p class="hint">
+        Seeded admin: <code>admin@devplane.local / admin123</code><br />
+        Seeded developer: <code>dev@devplane.local / dev123</code>
+      </p>
+      <p class="hint">API docs: <a href="/docs">/docs</a> &middot; metrics: <a href="/metrics">/metrics</a></p>
+    </section>
+
+    <section id="app-panel" hidden>
+      <nav>
+        <button data-tab="catalog" class="active">Catalog</button>
+        <button data-tab="delivery">Delivery</button>
+        <button data-tab="config">Flags &amp; secrets</button>
+        <button data-tab="ops">Ops registry</button>
+        <button data-tab="admin">Admin</button>
+      </nav>
+
+      <article id="catalog">
+        <h2>Service catalog</h2>
+        <form id="svc-form" class="grid-form">
+          <input name="name" placeholder="service name" required />
+          <input name="repo_url" placeholder="https://github.com/org/repo" required />
+          <input name="tech_stack" placeholder="FastAPI, PostgreSQL" />
+          <input name="description" placeholder="short description" />
+          <button type="submit">Add service</button>
+        </form>
+        <div id="services" class="cards"></div>
+      </article>
+
+      <article id="delivery" hidden>
+        <h2>Environments &amp; deployments</h2>
+        <label>Service
+          <select id="service-select"></select>
+        </label>
+
+        <h3>Environments</h3>
+        <form id="env-form" class="grid-form">
+          <input name="name" placeholder="staging" required />
+          <select name="env_type">
+            <option>dev</option>
+            <option>ephemeral</option>
+            <option>staging</option>
+            <option>prod</option>
+          </select>
+          <input name="ttl_minutes" type="number" min="1" placeholder="TTL minutes (optional)" />
+          <input name="cluster_namespace" placeholder="namespace (default)" />
+          <button type="submit">Provision</button>
+        </form>
+        <div id="envs" class="cards"></div>
+
+        <h3>Deploy</h3>
+        <form id="dep-form" class="grid-form">
+          <select name="env_id" id="env-select" required></select>
+          <input name="version" placeholder="v1.2.0" required />
+          <input name="commit_sha" placeholder="abc123" />
+          <select name="strategy">
+            <option>rolling</option>
+            <option>blue-green</option>
+            <option>canary</option>
+          </select>
+          <label class="inline"><input type="checkbox" name="is_rollback" /> rollback flag</label>
+          <button type="submit">Trigger deployment</button>
+        </form>
+        <div id="deps" class="cards"></div>
+      </article>
+
+      <article id="config" hidden>
+        <h2>Feature flags &amp; secret references</h2>
+        <label>Service
+          <select id="config-service-select"></select>
+        </label>
+        <h3>Feature flags</h3>
+        <form id="flag-form" class="grid-form">
+          <input name="key" placeholder="checkout-v2" required />
+          <input name="description" placeholder="description" />
+          <label class="inline"><input type="checkbox" name="enabled" /> enabled</label>
+          <button type="submit">Create flag</button>
+        </form>
+        <div id="flags" class="cards"></div>
+
+        <h3>Secret references (paths only, never values)</h3>
+        <form id="secret-form" class="grid-form">
+          <input name="name" placeholder="db-password" required />
+          <select name="provider">
+            <option>kubernetes</option>
+            <option>vault</option>
+            <option>aws-secrets-manager</option>
+            <option>azure-key-vault</option>
+          </select>
+          <input name="ref_path" placeholder="secret/devplane/db-password" required />
+          <button type="submit">Add reference</button>
+        </form>
+        <div id="secrets" class="cards"></div>
+      </article>
+
+      <article id="ops" hidden>
+        <h2>Tool / ops registry</h2>
+        <p class="hint">Real Kubernetes/Jenkins integrations are used when configured; otherwise honest stubs are returned.</p>
+        <div id="tools" class="cards"></div>
+        <form id="ops-form" class="grid-form">
+          <select name="tool" id="ops-tool"></select>
+          <input name="pod" placeholder="pod name (for logs)" />
+          <input name="namespace" placeholder="namespace (default)" />
+          <button type="submit">Run tool</button>
+        </form>
+        <pre id="ops-out">Select a tool to run.</pre>
+      </article>
+
+      <article id="admin" hidden>
+        <h2>Admin overview</h2>
+        <pre id="admin-out"></pre>
+        <h3>Audit log</h3>
+        <button id="audit-refresh" class="ghost">Refresh</button>
+        <pre id="audit-out"></pre>
+      </article>
+    </section>
+  </main>
+  <div id="toast" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

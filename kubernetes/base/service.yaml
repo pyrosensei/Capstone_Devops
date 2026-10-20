@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: devplane-api
+  namespace: devplane
+  labels:
+    app.kubernetes.io/name: devplane-api
+    app.kubernetes.io/part-of: devplane
+spec:
+  selector:
+    app: devplane-api
+    version: blue
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devplane-api-blue
+  namespace: devplane
+spec:
+  selector:
+    app: devplane-api
+    version: blue
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devplane-api-green
+  namespace: devplane
+spec:
+  selector:
+    app: devplane-api
+    version: green
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devplane-redis
+  namespace: devplane
+spec:
+  selector:
+    app: devplane-redis
+  ports:
+    - port: 6379
+      targetPort: 6379

@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: devplane-api
+  namespace: devplane
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: devplane-api

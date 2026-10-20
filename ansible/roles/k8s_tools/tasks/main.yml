@@ -1,0 +1,53 @@
+---
+# Installs kubectl, kind and Helm on Linux (Debian/Ubuntu or similar).
+- name: Map host architecture to release architecture
+  ansible.builtin.set_fact:
+    k8s_arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}"
+
+- name: Install kubectl
+  ansible.builtin.get_url:
+    url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/{{ k8s_arch }}/kubectl"
+    dest: /usr/local/bin/kubectl
+    mode: "0755"
+    force: false
+  become: true
+
+- name: Install kind
+  ansible.builtin.get_url:
+    url: "https://kind.sigs.k8s.io/dl/{{ kind_version }}/kind-linux-{{ k8s_arch }}"
+    dest: /usr/local/bin/kind
+    mode: "0755"
+    force: false
+  become: true
+
+- name: Download Helm archive
+  ansible.builtin.get_url:
+    url: "https://get.helm.sh/helm-{{ helm_version }}-linux-{{ k8s_arch }}.tar.gz"
+    dest: /tmp/helm.tar.gz
+    mode: "0644"
+  become: true
+
+- name: Extract Helm binary
+  ansible.builtin.unarchive:
+    src: /tmp/helm.tar.gz
+    dest: /tmp
+    remote_src: true
+  become: true
+
+- name: Install Helm
+  ansible.builtin.copy:
+    src: "/tmp/linux-{{ k8s_arch }}/helm"
+    dest: /usr/local/bin/helm
+    mode: "0755"
+    remote_src: true
+  become: true
+
+- name: Report installed tool versions
+  ansible.builtin.command: "{{ item }}"
+  loop:
+    - kubectl version --client
+    - kind version
+    - helm version --short
+  register: k8s_tool_versions
+  changed_when: false
+  failed_when: false

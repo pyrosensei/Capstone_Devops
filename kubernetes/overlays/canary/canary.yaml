@@ -1,0 +1,108 @@
+# Canary track: a separate Deployment/Service labeled version=canary plus an
+# NGINX Ingress with canary-weight. The primary Service selects version=blue, so
+# canary pods never receive traffic through the main Service.
+#
+# Apply:  kubectl apply -f kubernetes/canary-patch.yaml
+# Remove: kubectl delete -f kubernetes/canary-patch.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devplane-api-canary
+  namespace: devplane
+  labels:
+    app: devplane-api
+    version: canary
+    track: canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: devplane-api
+      version: canary
+  template:
+    metadata:
+      labels:
+        app: devplane-api
+        version: canary
+        track: canary
+    spec:
+      serviceAccountName: devplane
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: api
+          image: devplane-api:canary
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: devplane-config
+            - secretRef:
+                name: devplane-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: devplane-data
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devplane-api-canary
+  namespace: devplane
+spec:
+  selector:
+    app: devplane-api
+    version: canary
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: devplane-canary
+  namespace: devplane
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: devplane.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: devplane-api-canary
+                port:
+                  number: 80

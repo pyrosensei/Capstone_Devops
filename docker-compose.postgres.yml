@@ -1,0 +1,29 @@
+# Override to run the API/worker against PostgreSQL instead of SQLite.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build -d
+#
+# The postgres service is moved out of the optional profile so it always starts.
+services:
+  postgres:
+    profiles: []
+
+  api:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://devplane:${POSTGRES_PASSWORD:-devplane}@postgres:5432/devplane
+      RUN_MIGRATIONS: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    environment:
+      DATABASE_URL: postgresql+psycopg2://devplane:${POSTGRES_PASSWORD:-devplane}@postgres:5432/devplane
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy

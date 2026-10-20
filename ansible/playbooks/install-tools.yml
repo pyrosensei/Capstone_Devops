@@ -1,0 +1,7 @@
+---
+- name: Install Docker and Kubernetes tools only
+  hosts: local
+  gather_facts: true
+  roles:
+    - { role: docker, tags: ["docker"] }
+    - { role: k8s_tools, tags: ["k8s-tools"] }

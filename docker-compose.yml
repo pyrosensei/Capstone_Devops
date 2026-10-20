@@ -1,0 +1,243 @@
+name: devplane
+
+x-app-env: &app-env
+  APP_ENV: docker
+  DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/devplane.db}
+  REDIS_URL: redis://redis:6379/0
+  SECRET_KEY: ${SECRET_KEY:-change-me-in-compose}
+  BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@devplane.local}
+  BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin123}
+  BOOTSTRAP_DEV_EMAIL: ${BOOTSTRAP_DEV_EMAIL:-dev@devplane.local}
+  BOOTSTRAP_DEV_PASSWORD: ${BOOTSTRAP_DEV_PASSWORD:-dev123}
+  PROVISIONING_DELAY_SECONDS: ${PROVISIONING_DELAY_SECONDS:-3}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  api:
+    build: .
+    image: devplane-api:local
+    container_name: devplane-api
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *app-env
+      RUN_MIGRATIONS: "1"
+    volumes:
+      - app-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    build: .
+    image: devplane-api:local
+    container_name: devplane-worker
+    command: ["python", "-m", "worker.main"]
+    environment:
+      <<: *app-env
+      PROVISIONING_DELAY_SECONDS: ${WORKER_DELAY_SECONDS:-2}
+    volumes:
+      - app-data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: devplane-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: devplane-postgres
+    environment:
+      POSTGRES_USER: devplane
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devplane}
+      POSTGRES_DB: devplane
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devplane -d devplane"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    profiles: ["postgres"]
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: devplane-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      api:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    profiles: ["observability"]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: devplane-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    profiles: ["observability"]
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: devplane-loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./logging/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    profiles: ["observability"]
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    container_name: devplane-promtail
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./logging/loki/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-positions:/tmp
+    depends_on:
+      - loki
+    profiles: ["observability"]
+    restart: unless-stopped
+
+  # Optional Fluentd forwarder for the "Fluentd + Loki/ELK" syllabus variant.
+  fluentd:
+    image: fluent/fluentd:v1.17-debian-1
+    container_name: devplane-fluentd
+    volumes:
+      - ./logging/fluentd/fluent.conf:/fluentd/etc/fluent.conf:ro
+    ports:
+      - "24224:24224"
+    profiles: ["fluentd"]
+    restart: unless-stopped
+
+  # Optional ELK stack (Phase 8 alternative). Heavy: give Docker >= 6 GB RAM.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: devplane-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+    profiles: ["elk"]
+    restart: unless-stopped
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.14.3
+    container_name: devplane-logstash
+    volumes:
+      - ./logging/elk/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5000:5000"
+      - "9600:9600"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles: ["elk"]
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.14.3
+    container_name: devplane-kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles: ["elk"]
+    restart: unless-stopped
+
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: devplane-sonarqube
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonar-data:/opt/sonarqube/data
+      - sonar-extensions:/opt/sonarqube/extensions
+    profiles: ["security"]
+    restart: unless-stopped
+
+volumes:
+  app-data:
+  redis-data:
+  pg-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  promtail-positions:
+  es-data:
+  sonar-data:
+  sonar-extensions:

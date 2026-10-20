@@ -1,0 +1,46 @@
+---
+- name: Prepare host tooling and deploy the DevPlane Docker Compose stack
+  hosts: local
+  gather_facts: true
+  vars:
+    repo_root: "{{ playbook_dir }}/../.."
+  roles:
+    - { role: docker, tags: ["docker"] }
+    - { role: k8s_tools, tags: ["k8s-tools"] }
+
+  tasks:
+    - name: Verify repository root
+      ansible.builtin.stat:
+        path: "{{ repo_root }}/docker-compose.yml"
+      register: compose_file
+      tags: ["deploy"]
+
+    - name: Fail if compose file is missing
+      ansible.builtin.fail:
+        msg: "Run this playbook from the repository (docker-compose.yml not found)."
+      when: not compose_file.stat.exists
+      tags: ["deploy"]
+
+    - name: Build and start API, worker and Redis
+      ansible.builtin.command: docker compose up -d --build api worker redis
+      args:
+        chdir: "{{ repo_root }}"
+      register: compose_up
+      changed_when: "'Started' in compose_up.stderr or 'Started' in compose_up.stdout"
+      tags: ["deploy"]
+
+    - name: Wait for the API health endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/health/ready
+        status_code: 200
+      register: health
+      until: health.status == 200
+      retries: 30
+      delay: 3
+      changed_when: false
+      tags: ["deploy"]
+
+    - name: Show the DevPlane URL
+      ansible.builtin.debug:
+        msg: "DevPlane is running at http://127.0.0.1:8000 (docs: /docs)"
+      tags: ["deploy"]

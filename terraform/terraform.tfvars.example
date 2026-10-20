@@ -1,0 +1,9 @@
+cluster_name   = "devplane-kind"
+enable_kind    = true
+is_windows     = true
+install_ingress = true
+apply_manifests = true
+namespace      = "devplane"
+image_tag      = "local"
+# secret_key   = "set-via-TF_VAR_secret_key"
+repo_root      = ".."
