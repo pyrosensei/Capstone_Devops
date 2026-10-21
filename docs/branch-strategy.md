@@ -1,15 +1,25 @@
 # Git branch strategy
 
-- `main` — always demo-ready. Protected in a real GitHub org.
-- `feature/<topic>` — one syllabus phase or product slice (catalog, k8s, monitoring).
-- `fix/<issue>` — bugfixes.
+- `main` - always demo-ready. Protect it in a real GitHub organization.
+- `feature/<topic>` - one syllabus phase or product slice, such as `feature/kubernetes` or `feature/observability`.
+- `fix/<issue>` - bug fixes.
+- `docs/<topic>` - documentation-only changes.
 
 Suggested flow:
 
 1. Branch from `main`.
-2. Small, meaningful commits (see README commit history notes).
-3. Open a pull request; Jenkins builds `Jenkinsfile`.
-4. Merge squash or merge commit into `main`.
-5. Argo CD syncs `kubernetes/overlays/dev`.
+2. Keep commits small and meaningful.
+3. Open a pull request; Jenkins builds the `Jenkinsfile` for the branch.
+4. Review tests, lint, and the Docker build.
+5. Squash-merge or merge into `main`.
+6. Argo CD syncs `kubernetes/overlays/dev` if it is installed against the repository.
 
-Commit message style: `phaseN: imperative summary` e.g. `phase3: add multi-stage non-root Dockerfile`.
+Commit message style:
+
+```text
+phase3: add multi-stage non-root Dockerfile
+fix: wait for ingress admission before applying manifests
+docs: rewrite Kubernetes runbook
+```
+
+Do not commit `.env`, kubeconfigs, tokens, registry credentials, or generated coverage artifacts.
