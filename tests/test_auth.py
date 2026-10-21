@@ -20,10 +20,10 @@ def test_register_and_conflict(client: TestClient):
         "email": "new.dev@devplane.local",
         "full_name": "New Dev",
         "password": "secret1",
-        "role": "developer",
     }
     first = client.post("/api/v1/auth/register", json=payload)
     assert first.status_code == 201
+    assert first.json()["role"] == "developer"
     second = client.post("/api/v1/auth/register", json=payload)
     assert second.status_code == 409
 

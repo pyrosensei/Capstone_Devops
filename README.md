@@ -84,10 +84,14 @@ conda create -n capstone_devops python=3.11 -y
 conda activate capstone_devops
 python -m pip install -r requirements-dev.txt
 Copy-Item .env.example .env
+# Generate a unique JWT signing key and replace SECRET_KEY in .env
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Open <http://127.0.0.1:8000>. API documentation is at <http://127.0.0.1:8000/docs>.
+
+`APP_ENV=development` permits the placeholder key for local demos only. Docker, Kubernetes, staging, and production refuse to start with a placeholder or a key shorter than 32 characters.
 
 Seeded demo accounts:
 
@@ -114,7 +118,7 @@ conda run -n capstone_devops pytest --cov=app --cov-report=term-missing
 conda run -n capstone_devops ruff check app tests worker
 ```
 
-Current baseline: 23 tests passing, 92% statement coverage. The suite covers authentication and roles, catalog, environments and TTL, deployments and rollback, flags, secret references, audit immutability, metrics, health, ops stubs, and validation errors.
+Current baseline: 28 tests passing, 92% statement coverage. The suite covers authentication and roles, catalog, environments and TTL, deployments and rollback, flags, secret references, audit immutability, metrics, health, ops stubs, and validation errors.
 
 ## Docker Compose
 
@@ -127,6 +131,8 @@ docker compose logs -f api
 ```
 
 Open <http://127.0.0.1:8000>. The API container runs Alembic before starting because `RUN_MIGRATIONS=1`.
+
+Compose requires `SECRET_KEY` to be set; if it is missing or empty, `docker compose` stops with a configuration error. A placeholder value passes Compose but the API refuses to start because `APP_ENV=docker`.
 
 ### PostgreSQL
 
@@ -172,7 +178,7 @@ Linux/macOS:
 ./scripts/kind-up.sh
 ```
 
-The script creates the `devplane-kind` cluster, installs ingress-nginx and metrics-server, builds and loads `devplane-api:local`, then applies `kubernetes/overlays/dev`.
+The script creates the `devplane-kind` cluster, installs ingress-nginx and metrics-server, builds and loads `devplane-api:local`, then applies `kubernetes/overlays/dev`. It generates a fresh `SECRET_KEY` and updates the `devplane-secrets` Secret before restarting the API and worker; the placeholder in `kubernetes/base/secret.yaml` is not usable for a non-development deployment. If applying the manifests manually, set a strong key first.
 
 ### Access
 
@@ -229,10 +235,11 @@ kind delete cluster --name devplane-kind
 ```powershell
 helm lint helm/devplane
 helm template devplane helm/devplane
-helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace
+$secret = python -c "import secrets; print(secrets.token_urlsafe(48))"
+helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace --set-string secret.SECRET_KEY=$secret
 ```
 
-The chart includes API and worker deployments, Service, Ingress, HPA, PVC, Redis, RBAC, ConfigMap, Secret, and NOTES. Override `image.repository`, `image.tag`, `ingress.host`, secrets, and resources in a values file for a real environment.
+The chart includes API and worker deployments, Service, Ingress, HPA, PVC, Redis, RBAC, ConfigMap, Secret, and NOTES. Override `image.repository`, `image.tag`, `ingress.host`, secrets, and resources in a values file for a real environment. The chart's default `secret.SECRET_KEY` is a placeholder; a real install must override it.
 
 ## CI/CD and GitOps
 
@@ -299,10 +306,15 @@ All `/api/v1` routes except registration/login require a Bearer JWT.
 
 Role rules: developers can manage catalog entries, environments, deployments, flags, and secret references. Admin-only operations are service deletion, deployment status override, audit access, platform metrics, and the manual TTL reaper.
 
+Public registration always creates a `developer`. The request schema rejects a `role` field, so self-service signup cannot grant admin access. Admin users come only from bootstrap seeding or an explicit administrative process.
+
 ## Security
 
 - Container and pod run as UID/GID `10001`, non-root, with a read-only root filesystem, dropped Linux capabilities, and `RuntimeDefault` seccomp.
 - Kubernetes Secrets are referenced through environment variables; `.env` is ignored by Git.
+- Self-registration always creates a developer account; the API does not accept a role during signup.
+- Outside development, startup fails if `SECRET_KEY` is empty, a known placeholder, or shorter than 32 characters.
+- Ops registry queries are restricted to `OPS_ALLOWED_NAMESPACES` (default `default,devplane`) instead of trusting arbitrary user-supplied namespaces.
 - The API's secret-reference feature stores only provider and path metadata.
 - RBAC limits the in-cluster Kubernetes client to pods, logs, and deployments.
 - Optional NetworkPolicy is provided in `kubernetes/security/networkpolicy.yaml`.
@@ -357,7 +369,7 @@ docs/                Phase documentation, deployment/security notes, screenshots
 
 Validated on Windows with Docker Desktop and kind:
 
-- `pytest`: 23 passed; 92% statement coverage.
+- `pytest`: 28 passed; 92% statement coverage.
 - `ruff check app tests worker`: passed.
 - `docker build`: multi-stage image built successfully.
 - Docker Compose API + worker + Redis: healthy; smoke test passed.

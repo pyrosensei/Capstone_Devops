@@ -44,6 +44,53 @@ def test_registration_normalizes_email_and_rejects_bad_input(client: TestClient)
     assert bad_role.status_code == 422
 
 
+def test_registration_cannot_self_assign_admin(client: TestClient):
+    email = f"privilege.{uuid.uuid4().hex[:6]}@devplane.local"
+    escalated = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": email,
+            "full_name": "Privilege Escalation",
+            "password": "secret1",
+            "role": "admin",
+        },
+    )
+    assert escalated.status_code == 422
+
+    registered = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": email,
+            "full_name": "Privilege Escalation",
+            "password": "secret1",
+        },
+    )
+    assert registered.status_code == 201, registered.text
+    assert registered.json()["role"] == "developer"
+
+    login = client.post(
+        "/api/v1/auth/login",
+        data={"username": email, "password": "secret1"},
+    )
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    assert client.get("/api/v1/admin/audit", headers=headers).status_code == 403
+
+
+def test_ops_namespace_is_allowlisted(client: TestClient, auth_headers: dict[str, str]):
+    denied = client.get(
+        "/api/v1/ops/pods?namespace=kube-system",
+        headers=auth_headers,
+    )
+    assert denied.status_code == 403
+
+    denied_logs = client.get(
+        "/api/v1/ops/logs?pod=test&namespace=kube-system",
+        headers=auth_headers,
+    )
+    assert denied_logs.status_code == 403
+
+
 def test_developer_role_is_limited(client: TestClient):
     headers = _developer_headers(client)
     service = client.post(
