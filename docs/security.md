@@ -15,9 +15,10 @@ The demo does not include OIDC/SSO, MFA, refresh-token rotation, or account lock
 ## Secrets
 
 - `.env` is ignored by Git; `.env.example` contains placeholders only.
-- Kubernetes Secrets hold the JWT key and bootstrap passwords.
+- Kubernetes Secrets hold the JWT key, PostgreSQL password, `DATABASE_URL`, and bootstrap passwords.
 - The API's secret-reference feature stores provider and path metadata, not secret values.
-- Outside `development`/`test`, settings validation refuses an empty `SECRET_KEY`, known placeholders, keys starting with `change-me`/`replace-me`, and keys shorter than 32 characters.
+- Outside `development`/`test`, settings validation refuses an empty `SECRET_KEY`, known placeholders, keys starting with `change-me`/`replace-me`, and keys shorter than 32 characters. JWT algorithms are restricted to `HS256`, `HS384`, and `HS512`.
+- Demo bootstrap passwords are rejected outside `development`/`test` unless `DEMO_MODE=true` is set explicitly.
 - Compose requires `SECRET_KEY` to be set and fails fast if it is missing or empty.
 - Compose defaults are demo values and must be overridden.
 - The repository includes no registry, Sonar, Slack, Jenkins, or cloud credentials.
@@ -40,7 +41,7 @@ For production, use an external secret store (Vault, AWS Secrets Manager, Azure 
   - `allowPrivilegeEscalation: false`
   - all capabilities dropped
   - `seccompProfile: RuntimeDefault`
-- Writable paths are limited to the data PVC and an emptyDir `/tmp`.
+- Compose persists SQLite data in the `app-data` volume. Kubernetes app pods write only to an emptyDir `/tmp`; PostgreSQL owns the `devplane-postgres-data` PVC.
 - The image runs Alembic only when `RUN_MIGRATIONS=1`.
 
 ## Kubernetes
@@ -50,13 +51,13 @@ For production, use an external secret store (Vault, AWS Secrets Manager, Azure 
 - `kubernetes/base/poddisruptionbudget.yaml` protects API availability.
 - `kubernetes/security/networkpolicy.yaml` is an optional policy; apply it deliberately because it can block DNS/Redis/ingress depending on your cluster CNI.
 - Ingress and Services are internal by default; expose them only through the intended ingress controller.
-- The demo uses an RWO PVC with SQLite. This is not suitable for multi-node production.
+- The demo uses a PostgreSQL Deployment with an RWO PVC. Use a managed or highly available database for production.
 
 ## Supply chain and scanning
 
 - Jenkins runs Ruff before tests.
 - Optional SonarQube stage when `SONAR_HOST_URL` is configured.
-- Optional Trivy image scan in Jenkins (report-only by default).
+- Trivy image scan in Jenkins blocks HIGH/CRITICAL findings by default (`TRIVY_EXIT_CODE=1`; set `0` only for report-only runs).
 - `pip-audit` can be run locally:
 
 ```powershell
@@ -83,18 +84,18 @@ conda run -n capstone_devops pip-audit -r requirements.txt
 
 ## Demo hardening checklist
 
-1. Generate and set a unique `SECRET_KEY`, then replace both bootstrap passwords. Non-development startup refuses the placeholder key.
+1. Generate and set a unique `SECRET_KEY`, a PostgreSQL password/`DATABASE_URL`, and both bootstrap passwords. Non-development startup refuses placeholders and demo passwords unless `DEMO_MODE=true`.
 2. Change the Grafana admin password.
-3. Set a PostgreSQL password if using the override.
+3. Set a strong PostgreSQL password in Compose, Kubernetes, or Helm.
 4. Keep `.env` out of Git.
 5. Apply the NetworkPolicy only after checking cluster DNS and ingress behavior.
-6. Set `--exit-code 1` for Trivy if the pipeline must block vulnerabilities.
+6. Keep `TRIVY_EXIT_CODE=1` (the default) so Trivy blocks HIGH/CRITICAL findings.
 7. Remove demo users/data before publishing screenshots or recordings.
 
 ## Residual risks
 
 - Local JWT without SSO or MFA.
 - Well-known demo credentials if not changed.
-- SQLite concurrency and single-node storage assumptions.
+- Single-node PostgreSQL storage and demo credentials; use a managed database and real secrets outside the demo.
 - Simulated provisioning/deployment rather than a hardened executor.
 - Optional scanners and policies are not enabled by default.

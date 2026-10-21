@@ -81,11 +81,10 @@ class OpsRegistry:
             if k8s is None:
                 return {
                     "source": "stub",
+                    "status": "unavailable",
                     "namespace": namespace,
-                    "pods": [
-                        {"name": "devplane-api-0", "status": "Running", "restarts": 0},
-                        {"name": "devplane-worker-0", "status": "Running", "restarts": 0},
-                    ],
+                    "pods": [],
+                    "note": "Kubernetes client is not configured; no live pods were read.",
                 }
             v1 = k8s.CoreV1Api()
             items = v1.list_namespaced_pod(namespace=namespace).items
@@ -113,8 +112,10 @@ class OpsRegistry:
             if k8s is None:
                 return {
                     "source": "stub",
+                    "status": "unavailable",
                     "pod": pod,
-                    "logs": "INFO waiting for local cluster; using stub logs\nINFO control plane healthy",
+                    "logs": "",
+                    "note": "Kubernetes client is not configured; no live logs were read.",
                 }
             v1 = k8s.CoreV1Api()
             logs = v1.read_namespaced_pod_log(name=pod, namespace=namespace, tail_lines=tail)
@@ -129,9 +130,10 @@ class OpsRegistry:
                 return {
                     "source": "stub",
                     "name": name,
-                    "ready_replicas": 1,
-                    "replicas": 1,
-                    "status": "Available",
+                    "replicas": 0,
+                    "ready_replicas": 0,
+                    "status": "unavailable",
+                    "note": "Kubernetes client is not configured; deployment was not read.",
                 }
             apps = k8s.AppsV1Api()
             dep = apps.read_namespaced_deployment(name=name, namespace=namespace)
@@ -166,13 +168,14 @@ class OpsRegistry:
                 }
             return {
                 "source": "stub",
-                "workspace": "local-kind",
-                "status": "planned",
-                "adds": 6,
-                "changes": 1,
+                "workspace": None,
+                "status": "unavailable",
+                "adds": 0,
+                "changes": 0,
                 "destroys": 0,
-                "note": "Run terraform -chdir=terraform plan -out=tfplan && "
-                "terraform -chdir=terraform show -json tfplan > terraform/tfplan.json",
+                "note": "No Terraform plan artifact found. Run terraform -chdir=terraform "
+                "plan -out=tfplan && terraform -chdir=terraform show -json tfplan > "
+                "terraform/tfplan.json",
             }
 
         return self._guard("terraform_plan_status", _run)
@@ -184,8 +187,8 @@ class OpsRegistry:
                 "source": "stub",
                 "job": job,
                 "url": settings.jenkins_url,
-                "last_build": 42,
-                "result": "SUCCESS",
+                "last_build": None,
+                "result": "UNAVAILABLE",
                 "note": "Set JENKINS_USER and JENKINS_TOKEN for live status",
             }
 

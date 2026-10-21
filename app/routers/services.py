@@ -3,6 +3,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_admin
+from app.core.exceptions import ForbiddenError
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.environment import EnvironmentCreate, EnvironmentRead, EnvironmentUpdate
@@ -94,6 +95,8 @@ def update_env(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    if payload.status is not None and user.role != "admin":
+        raise ForbiddenError("Only admins can override environment status")
     return EnvironmentService(db).update(
         env_id, payload, user, request.client.host if request.client else ""
     )

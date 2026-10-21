@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: devplane-data
+  name: devplane-postgres-data
   namespace: devplane
 spec:
   accessModes: ["ReadWriteOnce"]

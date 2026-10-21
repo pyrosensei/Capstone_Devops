@@ -26,6 +26,39 @@ kubectl -n kube-system rollout status deployment/metrics-server --timeout=180s
 docker build -t devplane-api:local .
 kind load docker-image devplane-api:local --name "$CLUSTER"
 
+kubectl create namespace devplane --dry-run=client -o yaml | kubectl apply -f -
+
+get_secret_value() {
+  local encoded
+  encoded=$(kubectl -n devplane get secret devplane-secrets -o jsonpath="{.data.$1}" 2>/dev/null || true)
+  if [ -z "$encoded" ]; then
+    return 0
+  fi
+  printf '%s' "$encoded" | base64 -d
+}
+
+SECRET_KEY=$(get_secret_value SECRET_KEY)
+if [ -z "$SECRET_KEY" ]; then
+  SECRET_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n')
+fi
+POSTGRES_PASSWORD=$(get_secret_value POSTGRES_PASSWORD)
+if [ -z "$POSTGRES_PASSWORD" ]; then
+  POSTGRES_PASSWORD=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
+fi
+BOOTSTRAP_ADMIN_PASSWORD=$(get_secret_value BOOTSTRAP_ADMIN_PASSWORD)
+BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD:-admin123}
+BOOTSTRAP_DEV_PASSWORD=$(get_secret_value BOOTSTRAP_DEV_PASSWORD)
+BOOTSTRAP_DEV_PASSWORD=${BOOTSTRAP_DEV_PASSWORD:-dev123}
+DATABASE_URL="postgresql+psycopg2://devplane:${POSTGRES_PASSWORD}@devplane-postgres:5432/devplane"
+
+kubectl -n devplane create secret generic devplane-secrets \
+  --from-literal=SECRET_KEY="$SECRET_KEY" \
+  --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  --from-literal=DATABASE_URL="$DATABASE_URL" \
+  --from-literal=BOOTSTRAP_ADMIN_PASSWORD="$BOOTSTRAP_ADMIN_PASSWORD" \
+  --from-literal=BOOTSTRAP_DEV_PASSWORD="$BOOTSTRAP_DEV_PASSWORD" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 applied=false
 for attempt in 1 2 3 4 5; do
   if kubectl apply -k kubernetes/overlays/dev; then
@@ -40,15 +73,9 @@ if [ "$applied" != true ]; then
   exit 1
 fi
 
-echo "Generating application secret..."
-SECRET_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n')
-kubectl -n devplane create secret generic devplane-secrets \
-  --from-literal=SECRET_KEY="$SECRET_KEY" \
-  --from-literal=BOOTSTRAP_ADMIN_PASSWORD=admin123 \
-  --from-literal=BOOTSTRAP_DEV_PASSWORD=dev123 \
-  --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n devplane rollout restart deploy/devplane-api deploy/devplane-worker
 
+kubectl -n devplane rollout status deploy/devplane-postgres --timeout=240s
 kubectl -n devplane rollout status deploy/devplane-api --timeout=240s
 kubectl -n devplane rollout status deploy/devplane-worker --timeout=240s
 

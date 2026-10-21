@@ -35,7 +35,11 @@ class AuthService:
 
     def authenticate(self, email: str, password: str) -> tuple[User, str]:
         user = self.repo.get_by_email(email.strip().lower())
-        if not user or not verify_password(password, user.hashed_password):
+        if (
+            not user
+            or not user.is_active
+            or not verify_password(password, user.hashed_password)
+        ):
             raise UnauthorizedError("Incorrect email or password")
         token = create_access_token(user.email, extra={"role": user.role})
         return user, token

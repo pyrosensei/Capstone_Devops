@@ -10,7 +10,7 @@
 4. Pytest with coverage, JUnit XML, and archived artifacts.
 5. Optional SonarQube scan.
 6. Docker build with inline cache.
-7. Optional Trivy image scan.
+7. Trivy image scan; fails the build on HIGH/CRITICAL when Trivy is installed.
 8. Registry push/tag when `IMAGE_REGISTRY` is supplied.
 9. Optional Kubernetes deploy when `DEPLOY_TO_K8S` is enabled.
 10. Notify stub and prune old images.
@@ -36,7 +36,7 @@ Use a Linux agent with:
 - Python 3.11
 - Docker CLI and access to a Docker daemon
 - `kubectl` and `kind` for the optional deploy stage
-- Optional `sonar-scanner`, `trivy`
+- Optional `sonar-scanner`; install `trivy` to enforce the blocking image scan
 
 A Jenkins controller can run the pipeline if the Docker socket is mounted, but a dedicated agent is cleaner and matches the `sh` steps.
 
@@ -118,18 +118,19 @@ The pipeline runs `sonar-scanner` only when `SONAR_HOST_URL` is set. If the scan
 Install Trivy on the agent. The pipeline runs:
 
 ```bash
-trivy image --severity HIGH,CRITICAL --exit-code 0 --no-progress ${IMAGE}:${TAG}
+trivy image --severity HIGH,CRITICAL --exit-code "${TRIVY_EXIT_CODE:-1}" --no-progress ${IMAGE}:${TAG}
 ```
 
-`--exit-code 0` keeps the demo pipeline green while still printing findings. Change it to `1` if you want the build to fail on HIGH/CRITICAL findings.
+The gate defaults to `TRIVY_EXIT_CODE=1`, so HIGH/CRITICAL findings fail the build. Set the Jenkins environment variable `TRIVY_EXIT_CODE=0` only for a deliberate report-only run.
 
 ## Deploy stage behavior
 
 When `DEPLOY_TO_K8S` is true:
 
-1. If kind and the `devplane-kind` cluster exist, the image is loaded into kind and the Deployment image is updated.
-2. `kubectl apply -k ${K8S_OVERLAY}` runs.
-3. The API rollout is awaited.
+1. The pipeline verifies that the `devplane-secrets` Secret already exists (run `scripts/kind-up` or create it manually; the repository does not ship a usable Secret).
+2. If kind and the `devplane-kind` cluster exist, the image is loaded into kind.
+3. `kubectl apply -k ${K8S_OVERLAY}` runs, then API and worker images are updated to the built tag.
+4. PostgreSQL, API, and worker rollouts are awaited.
 
 This assumes Jenkins can reach the target kubeconfig. Do not point it at a shared cluster without review.
 

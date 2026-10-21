@@ -49,7 +49,7 @@ class DeploymentService:
             commit_sha=payload.commit_sha,
             status="running",
             logs_snippet=logs,
-            is_rollback=payload.is_rollback,
+            is_rollback=False,
             triggered_by=actor.email,
             strategy=payload.strategy,
         )
@@ -61,7 +61,7 @@ class DeploymentService:
             action="deploy",
             resource_type="deployment",
             resource_id=dep.id,
-            details=f"{payload.version} rollback={payload.is_rollback}",
+            details=f"{payload.version} strategy={payload.strategy}",
             ip_address=ip,
         )
         return dep

@@ -4,6 +4,22 @@ variable "secret_key" {
   type      = string
   sensitive = true
 }
+variable "postgres_password" {
+  type      = string
+  sensitive = true
+}
+variable "database_url" {
+  type      = string
+  sensitive = true
+}
+variable "bootstrap_admin_password" {
+  type      = string
+  sensitive = true
+}
+variable "bootstrap_dev_password" {
+  type      = string
+  sensitive = true
+}
 variable "repo_root" {
   type    = string
   default = ".."

@@ -47,8 +47,6 @@ spec:
             - secretRef:
                 name: devplane-secrets
           volumeMounts:
-            - name: data
-              mountPath: /app/data
             - name: tmp
               mountPath: /tmp
           securityContext:
@@ -83,8 +81,5 @@ spec:
               memory: 512Mi
       terminationGracePeriodSeconds: 30
       volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: devplane-data
         - name: tmp
           emptyDir: {}

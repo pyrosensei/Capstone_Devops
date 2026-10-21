@@ -128,7 +128,7 @@ async function refreshDeployments(envId) {
               <div class="card-head"><strong>#${esc(d.id)} ${esc(d.version)}</strong>
                 <span class="badge ${esc(d.status)}">${esc(d.status)}</span></div>
               <div class="muted">${esc(d.strategy)} &middot; ${esc(d.triggered_by)}
-                ${d.is_rollback ? "&middot; rollback" : ""}</div>
+                ${d.is_rollback ? "&middot; rollback" : ""} &middot; ${esc(d.execution_mode || "simulated")}</div>
               <pre class="snippet">${esc(d.logs_snippet)}</pre>
               ${d.status === "succeeded" ? `<button data-action="rollback" data-id="${esc(d.id)}">Roll back to previous</button>` : ""}
             </div>`
@@ -324,7 +324,6 @@ $("dep-form").addEventListener("submit", async (e) => {
         version: fd.get("version"),
         commit_sha: fd.get("commit_sha") || "",
         strategy: fd.get("strategy"),
-        is_rollback: fd.get("is_rollback") === "on",
       }),
     });
     toast(`Deployment #${dep.id} queued`);

@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.models.feature_flag import FeatureFlag
 from app.models.secret_ref import SecretReference
 from app.models.user import User
+from app.repositories.environments import EnvironmentRepository
 from app.repositories.flags import FeatureFlagRepository, SecretRefRepository
 from app.repositories.services import ServiceRepository
 from app.schemas.flags import FeatureFlagCreate, FeatureFlagUpdate, SecretRefCreate
@@ -15,10 +16,40 @@ class FeatureFlagService:
         self.db = db
         self.repo = FeatureFlagRepository(db)
         self.services = ServiceRepository(db)
+        self.environments = EnvironmentRepository(db)
 
     def _ensure_service(self, service_id: int) -> None:
         if not self.services.get(service_id):
             raise NotFoundError("Service not found")
+
+    def _ensure_environment(self, service_id: int, environment_id: int | None) -> None:
+        if environment_id is None:
+            return
+        environment = self.environments.get(environment_id)
+        if not environment or environment.service_id != service_id:
+            raise NotFoundError("Environment not found for this service")
+
+    def _ensure_unique_key(
+        self,
+        service_id: int,
+        key: str,
+        environment_id: int | None,
+        exclude_id: int | None = None,
+    ) -> None:
+        query = self.db.query(FeatureFlag).filter(
+            FeatureFlag.service_id == service_id,
+            FeatureFlag.key == key,
+        )
+        if environment_id is None:
+            query = query.filter(FeatureFlag.environment_id.is_(None))
+        else:
+            query = query.filter(FeatureFlag.environment_id == environment_id)
+        if exclude_id is not None:
+            query = query.filter(FeatureFlag.id != exclude_id)
+        if query.first():
+            raise ConflictError(
+                f"Feature flag '{key}' already exists in this service scope"
+            )
 
     def list(self, service_id: int):
         self._ensure_service(service_id)
@@ -35,6 +66,8 @@ class FeatureFlagService:
         self, service_id: int, payload: FeatureFlagCreate, actor: User, ip: str = ""
     ) -> FeatureFlag:
         self._ensure_service(service_id)
+        self._ensure_environment(service_id, payload.environment_id)
+        self._ensure_unique_key(service_id, payload.key, payload.environment_id)
         flag = FeatureFlag(service_id=service_id, **payload.model_dump())
         flag = self.repo.add(flag)
         audit.record(
@@ -57,7 +90,16 @@ class FeatureFlagService:
         ip: str = "",
     ) -> FeatureFlag:
         flag = self.get(service_id, flag_id)
-        for key, value in payload.model_dump(exclude_unset=True).items():
+        data = payload.model_dump(exclude_unset=True)
+        if "environment_id" in data:
+            self._ensure_environment(service_id, data["environment_id"])
+            self._ensure_unique_key(
+                service_id,
+                flag.key,
+                data["environment_id"],
+                exclude_id=flag.id,
+            )
+        for key, value in data.items():
             setattr(flag, key, value)
         flag = self.repo.save(flag)
         audit.record(
@@ -91,10 +133,18 @@ class SecretReferenceService:
         self.db = db
         self.repo = SecretRefRepository(db)
         self.services = ServiceRepository(db)
+        self.environments = EnvironmentRepository(db)
 
     def _ensure_service(self, service_id: int) -> None:
         if not self.services.get(service_id):
             raise NotFoundError("Service not found")
+
+    def _ensure_environment(self, service_id: int, environment_id: int | None) -> None:
+        if environment_id is None:
+            return
+        environment = self.environments.get(environment_id)
+        if not environment or environment.service_id != service_id:
+            raise NotFoundError("Environment not found for this service")
 
     def list(self, service_id: int):
         self._ensure_service(service_id)
@@ -104,6 +154,7 @@ class SecretReferenceService:
         self, service_id: int, payload: SecretRefCreate, actor: User, ip: str = ""
     ) -> SecretReference:
         self._ensure_service(service_id)
+        self._ensure_environment(service_id, payload.environment_id)
         ref = SecretReference(service_id=service_id, **payload.model_dump())
         ref = self.repo.add(ref)
         audit.record(

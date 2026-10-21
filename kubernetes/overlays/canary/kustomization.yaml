@@ -4,3 +4,5 @@ namespace: devplane
 resources:
   - ../../base
   - canary.yaml
+patches:
+  - path: demo-mode.yaml

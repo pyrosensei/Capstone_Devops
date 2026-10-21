@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEVELOPMENT_ENVIRONMENTS = {"development", "dev", "local", "test", "testing"}
@@ -10,6 +10,8 @@ _SECRET_KEY_PLACEHOLDERS = {
     "change-me-to-a-long-random-string",
     "change-me-via-sealed-secrets-or-sops",
 }
+_DEMO_PASSWORDS = {"admin123", "dev123", "password", "changeme", "change-me"}
+_ALLOWED_JWT_ALGORITHMS = {"HS256", "HS384", "HS512"}
 
 
 class Settings(BaseSettings):
@@ -20,8 +22,9 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     secret_key: str = "change-me-to-a-long-random-string"
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = Field(default=60, gt=0, le=1440)
     algorithm: str = "HS256"
+    demo_mode: bool = False
 
     database_url: str = "sqlite:///./data/devplane.db"
     redis_url: str = "redis://localhost:6379/0"
@@ -43,7 +46,13 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:8000,http://127.0.0.1:8000"
 
     @model_validator(mode="after")
-    def validate_secret_key(self) -> "Settings":
+    def validate_security_settings(self) -> "Settings":
+        if self.algorithm not in _ALLOWED_JWT_ALGORITHMS:
+            raise ValueError(
+                f"ALGORITHM must be one of {sorted(_ALLOWED_JWT_ALGORITHMS)}; "
+                f"got {self.algorithm!r}"
+            )
+
         key = self.secret_key.strip()
         if not key:
             raise ValueError("SECRET_KEY must not be empty")
@@ -63,6 +72,18 @@ class Settings(BaseSettings):
                 f"APP_ENV={self.app_env!r}. Generate one with: "
                 'python -c "import secrets; print(secrets.token_urlsafe(48))"'
             )
+
+        if not self.demo_mode:
+            for name, password in (
+                ("BOOTSTRAP_ADMIN_PASSWORD", self.bootstrap_admin_password),
+                ("BOOTSTRAP_DEV_PASSWORD", self.bootstrap_dev_password),
+            ):
+                normalized_password = password.strip().lower()
+                if normalized_password in _DEMO_PASSWORDS or len(password) < 12:
+                    raise ValueError(
+                        f"{name} must be changed to a value of at least 12 characters "
+                        f"when APP_ENV={self.app_env!r} and DEMO_MODE is false"
+                    )
         return self
 
     @property

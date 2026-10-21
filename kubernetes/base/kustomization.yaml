@@ -4,10 +4,10 @@ namespace: devplane
 resources:
   - namespace.yaml
   - configmap.yaml
-  - secret.yaml
   - pvc.yaml
   - rbac.yaml
   - redis.yaml
+  - postgres.yaml
   - deployment-api.yaml
   - deployment-worker.yaml
   - service.yaml

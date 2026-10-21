@@ -8,7 +8,6 @@ from app.schemas.common import ORMModel
 class DeploymentCreate(ORMModel):
     version: str = Field(min_length=1, max_length=128)
     commit_sha: str = Field(default="", max_length=64)
-    is_rollback: bool = False
     strategy: Literal["rolling", "blue-green", "canary"] = "rolling"
 
 
@@ -22,6 +21,7 @@ class DeploymentRead(ORMModel):
     is_rollback: bool
     triggered_by: str
     strategy: str
+    execution_mode: Literal["simulated"] = "simulated"
 
 
 class DeploymentUpdate(ORMModel):

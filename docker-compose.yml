@@ -5,6 +5,7 @@ x-app-env: &app-env
   DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/devplane.db}
   REDIS_URL: redis://redis:6379/0
   SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set to a unique value; see .env.example}
+  DEMO_MODE: ${DEMO_MODE:-false}
   BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@devplane.local}
   BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin123}
   BOOTSTRAP_DEV_EMAIL: ${BOOTSTRAP_DEV_EMAIL:-dev@devplane.local}

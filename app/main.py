@@ -32,9 +32,11 @@ logger = get_logger("devplane")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     engine = get_engine()
-    # SQLite demos rely on create_all for zero-friction startup. Production
-    # deployments run ``alembic upgrade head`` before the process starts.
-    Base.metadata.create_all(bind=engine)
+    # SQLite demos rely on create_all for zero-friction startup. PostgreSQL
+    # deployments run ``alembic upgrade head`` in the entrypoint so concurrent
+    # API replicas cannot race table creation.
+    if settings.is_sqlite:
+        Base.metadata.create_all(bind=engine)
     db = get_session()
     try:
         seed(db)
@@ -117,6 +119,7 @@ def health():
         db.close()
 
     redis_status = "unconfigured"
+    client = None
     try:
         import redis
 
@@ -125,6 +128,9 @@ def health():
         redis_status = "ok"
     except Exception:
         redis_status = "unavailable"
+    finally:
+        if client is not None:
+            client.close()
 
     return {
         "status": "ok" if db_status == "ok" else "degraded",
@@ -146,10 +152,11 @@ def readiness():
     db = get_session()
     try:
         db.execute(text("SELECT 1"))
-    except Exception as exc:
+    except Exception:
+        logger.exception("readiness_check_failed")
         return JSONResponse(
             status_code=503,
-            content={"status": "not_ready", "detail": str(exc)},
+            content={"status": "not_ready", "detail": "database unavailable"},
         )
     finally:
         db.close()

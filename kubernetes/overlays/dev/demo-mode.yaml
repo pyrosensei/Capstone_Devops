@@ -1,0 +1,7 @@
+﻿apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devplane-config
+  namespace: devplane
+data:
+  DEMO_MODE: "true"

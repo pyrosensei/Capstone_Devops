@@ -11,8 +11,10 @@ def test_ops_stubs(client: TestClient, auth_headers: dict[str, str]):
 
     tf = client.get("/api/v1/ops/terraform-plan-status", headers=auth_headers)
     assert tf.status_code == 200
-    assert tf.json()["status"] == "planned"
+    assert tf.json()["source"] == "stub"
+    assert tf.json()["status"] == "unavailable"
 
     jk = client.get("/api/v1/ops/jenkins-job-status", headers=auth_headers)
     assert jk.status_code == 200
-    assert "job" in jk.json()
+    assert jk.json()["source"] == "stub"
+    assert jk.json()["result"] == "UNAVAILABLE"

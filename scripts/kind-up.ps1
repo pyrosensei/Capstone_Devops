@@ -53,6 +53,54 @@ Assert-ExitCode "docker build"
 kind load docker-image devplane-api:local --name $cluster
 Assert-ExitCode "kind load docker-image"
 
+Write-Host "Preparing namespace and generated secrets..."
+kubectl create namespace devplane --dry-run=client -o yaml | kubectl apply -f -
+Assert-ExitCode "create namespace"
+
+function New-RandomBytes([int]$count) {
+    $bytes = New-Object byte[] $count
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($bytes)
+    } finally {
+        $rng.Dispose()
+    }
+    return ,$bytes
+}
+
+function Get-ExistingSecretValue([string]$name) {
+    $encoded = kubectl -n devplane get secret devplane-secrets -o jsonpath="{.data.$name}" 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $encoded) {
+        return ""
+    }
+    return [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
+}
+
+$secretKey = Get-ExistingSecretValue "SECRET_KEY"
+if (-not $secretKey) {
+    $secretBytes = New-RandomBytes 48
+    $secretKey = [Convert]::ToBase64String($secretBytes)
+}
+$postgresPassword = Get-ExistingSecretValue "POSTGRES_PASSWORD"
+if (-not $postgresPassword) {
+    $pgBytes = New-RandomBytes 24
+    $postgresPassword = -join ($pgBytes | ForEach-Object { $_.ToString("x2") })
+}
+$adminPassword = Get-ExistingSecretValue "BOOTSTRAP_ADMIN_PASSWORD"
+if (-not $adminPassword) { $adminPassword = "admin123" }
+$devPassword = Get-ExistingSecretValue "BOOTSTRAP_DEV_PASSWORD"
+if (-not $devPassword) { $devPassword = "dev123" }
+$databaseUrl = "postgresql+psycopg2://devplane:$postgresPassword@devplane-postgres:5432/devplane"
+
+kubectl -n devplane create secret generic devplane-secrets `
+    --from-literal=SECRET_KEY="$secretKey" `
+    --from-literal=POSTGRES_PASSWORD="$postgresPassword" `
+    --from-literal=DATABASE_URL="$databaseUrl" `
+    --from-literal=BOOTSTRAP_ADMIN_PASSWORD="$adminPassword" `
+    --from-literal=BOOTSTRAP_DEV_PASSWORD="$devPassword" `
+    --dry-run=client -o yaml | kubectl apply -f -
+Assert-ExitCode "generate application secret"
+
 Write-Host "Applying Kubernetes manifests..."
 $applied = $false
 for ($attempt = 1; $attempt -le 5; $attempt++) {
@@ -70,19 +118,11 @@ if (-not $applied) {
     throw "kubectl apply failed after 5 attempts"
 }
 
-Write-Host "Generating application secret..."
-$secretBytes = New-Object byte[] 48
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($secretBytes)
-$secretKey = [Convert]::ToBase64String($secretBytes)
-kubectl -n devplane create secret generic devplane-secrets `
-    --from-literal=SECRET_KEY="$secretKey" `
-    --from-literal=BOOTSTRAP_ADMIN_PASSWORD=admin123 `
-    --from-literal=BOOTSTRAP_DEV_PASSWORD=dev123 `
-    --dry-run=client -o yaml | kubectl apply -f -
-Assert-ExitCode "generate application secret"
 kubectl -n devplane rollout restart deploy/devplane-api deploy/devplane-worker
 Assert-ExitCode "restart workloads with generated secret"
 
+kubectl -n devplane rollout status deploy/devplane-postgres --timeout=240s
+Assert-ExitCode "postgres rollout"
 kubectl -n devplane rollout status deploy/devplane-api --timeout=240s
 Assert-ExitCode "api rollout"
 kubectl -n devplane rollout status deploy/devplane-worker --timeout=240s

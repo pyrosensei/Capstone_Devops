@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
@@ -24,6 +24,14 @@ def get_engine() -> Engine:
             pool_pre_ping=True,
             future=True,
         )
+        if settings.is_sqlite:
+
+            @event.listens_for(_engine, "connect")
+            def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+
         SessionLocal = sessionmaker(bind=_engine, autocommit=False, autoflush=False, class_=Session)
     return _engine
 

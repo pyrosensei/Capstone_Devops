@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devplane-postgres
+  namespace: devplane
+  labels:
+    app: devplane-postgres
+    app.kubernetes.io/name: devplane-postgres
+    app.kubernetes.io/part-of: devplane
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: devplane-postgres
+  template:
+    metadata:
+      labels:
+        app: devplane-postgres
+        app.kubernetes.io/name: devplane-postgres
+        app.kubernetes.io/part-of: devplane
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: devplane
+            - name: POSTGRES_USER
+              value: devplane
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: devplane-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "devplane", "-d", "devplane"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "devplane", "-d", "devplane"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: devplane-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devplane-postgres
+  namespace: devplane
+  labels:
+    app: devplane-postgres
+    app.kubernetes.io/name: devplane-postgres
+    app.kubernetes.io/part-of: devplane
+spec:
+  selector:
+    app: devplane-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

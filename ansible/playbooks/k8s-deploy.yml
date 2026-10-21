@@ -76,6 +76,58 @@
       when: install_ingress
       changed_when: false
 
+    - name: Create the application namespace
+      ansible.builtin.command: kubectl create namespace devplane --dry-run=client -o yaml
+      register: namespace_manifest
+      changed_when: false
+
+    - name: Apply the application namespace
+      ansible.builtin.shell: echo '{{ namespace_manifest.stdout }}' | kubectl apply -f -
+      changed_when: true
+
+    - name: Read the existing application secret
+      ansible.builtin.command: >-
+        kubectl -n devplane get secret devplane-secrets
+        -o jsonpath={.data.POSTGRES_PASSWORD}
+      register: existing_postgres_password
+      failed_when: false
+      changed_when: false
+
+    - name: Read the existing JWT secret
+      ansible.builtin.command: >-
+        kubectl -n devplane get secret devplane-secrets
+        -o jsonpath={.data.SECRET_KEY}
+      register: existing_secret_key
+      failed_when: false
+      changed_when: false
+
+    - name: Reuse or generate the database password
+      ansible.builtin.set_fact:
+        postgres_password: >-
+          {{ existing_postgres_password.stdout | b64decode
+             if existing_postgres_password.stdout | length > 0
+             else lookup('password', '/dev/null length=32 chars=hexdigits') }}
+
+    - name: Reuse or generate the JWT secret
+      ansible.builtin.set_fact:
+        app_secret_key: >-
+          {{ existing_secret_key.stdout | b64decode
+             if existing_secret_key.stdout | length > 0
+             else lookup('password', '/dev/null length=48 chars=ascii_letters,digits') }}
+
+    - name: Create or update the application secret
+      ansible.builtin.shell: |
+        set -euo pipefail
+        kubectl -n devplane create secret generic devplane-secrets \
+          --from-literal=SECRET_KEY="{{ app_secret_key }}" \
+          --from-literal=POSTGRES_PASSWORD="{{ postgres_password }}" \
+          --from-literal=DATABASE_URL="postgresql+psycopg2://devplane:{{ postgres_password }}@devplane-postgres:5432/devplane" \
+          --from-literal=BOOTSTRAP_ADMIN_PASSWORD="admin123" \
+          --from-literal=BOOTSTRAP_DEV_PASSWORD="dev123" \
+          --dry-run=client -o yaml | kubectl apply -f -
+      no_log: true
+      changed_when: true
+
     - name: Apply the kustomize overlay
       ansible.builtin.command: kubectl apply -k {{ k8s_overlay }}
       register: k8s_apply
@@ -83,6 +135,16 @@
       retries: 5
       delay: 5
       changed_when: true
+
+    - name: Restart workloads so the current Secret values are loaded
+      ansible.builtin.command: >-
+        kubectl -n devplane rollout restart deploy/devplane-api deploy/devplane-worker
+      changed_when: true
+
+    - name: Wait for the PostgreSQL rollout
+      ansible.builtin.command: >-
+        kubectl -n devplane rollout status deploy/devplane-postgres --timeout=240s
+      changed_when: false
 
     - name: Wait for the API rollout
       ansible.builtin.command: >-

@@ -6,7 +6,8 @@ metadata:
 data:
   APP_ENV: "kubernetes"
   APP_NAME: "DevPlane"
-  DATABASE_URL: "sqlite:////app/data/devplane.db"
+  DEMO_MODE: "false"
+  RUN_MIGRATIONS: "1"
   REDIS_URL: "redis://devplane-redis:6379/0"
   LOG_LEVEL: "INFO"
   PROVISIONING_DELAY_SECONDS: "3"

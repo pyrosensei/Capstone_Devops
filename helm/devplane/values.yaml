@@ -61,21 +61,40 @@ autoscaling:
 env:
   APP_ENV: kubernetes
   APP_NAME: DevPlane
-  DATABASE_URL: sqlite:////app/data/devplane.db
+  DEMO_MODE: "false"
   LOG_LEVEL: INFO
   PROVISIONING_DELAY_SECONDS: "3"
+  RUN_MIGRATIONS: "1"
 
 secret:
   create: true
-  SECRET_KEY: change-me
-  BOOTSTRAP_ADMIN_PASSWORD: admin123
-  BOOTSTRAP_DEV_PASSWORD: dev123
+  SECRET_KEY: ""
+  BOOTSTRAP_ADMIN_PASSWORD: ""
+  BOOTSTRAP_DEV_PASSWORD: ""
+  POSTGRES_PASSWORD: ""
 
-persistence:
+postgresql:
   enabled: true
-  size: 1Gi
-  storageClass: ""
-  accessMode: ReadWriteOnce
+  image:
+    repository: postgres
+    tag: 16-alpine
+  database: devplane
+  username: devplane
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+externalDatabase:
+  url: ""
 
 worker:
   enabled: true
