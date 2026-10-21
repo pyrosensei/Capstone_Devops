@@ -1,4 +1,3 @@
-from typing import Optional
 
 from pydantic import Field, HttpUrl
 
@@ -14,11 +13,11 @@ class ServiceCreate(ORMModel):
 
 
 class ServiceUpdate(ORMModel):
-    description: Optional[str] = None
-    repo_url: Optional[HttpUrl] = None
-    tech_stack: Optional[str] = None
-    status: Optional[str] = None
-    owner_id: Optional[int] = None
+    description: str | None = None
+    repo_url: HttpUrl | None = None
+    tech_stack: str | None = None
+    status: str | None = None
+    owner_id: int | None = None
 
 
 class ServiceRead(ORMModel):

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -38,7 +38,7 @@ class EnvironmentService:
             raise ConflictError(f"Environment '{payload.name}' already exists for this service")
         expires = None
         if payload.ttl_minutes:
-            expires = datetime.now(timezone.utc) + timedelta(minutes=payload.ttl_minutes)
+            expires = datetime.now(UTC) + timedelta(minutes=payload.ttl_minutes)
         env = Environment(
             service_id=service_id,
             name=payload.name,
@@ -70,7 +70,7 @@ class EnvironmentService:
             ttl = data["ttl_minutes"]
             env.ttl_minutes = ttl
             env.expires_at = (
-                datetime.now(timezone.utc) + timedelta(minutes=ttl) if ttl else None
+                datetime.now(UTC) + timedelta(minutes=ttl) if ttl else None
             )
         for key, value in data.items():
             if key != "ttl_minutes":
@@ -104,7 +104,7 @@ class EnvironmentService:
 
     def reap_expired(self, actor: str = "system") -> int:
         """Terminate environments whose TTL has elapsed. Returns count reaped."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expired = self.repo.list_expired(now)
         for env in expired:
             env.status = "terminated"

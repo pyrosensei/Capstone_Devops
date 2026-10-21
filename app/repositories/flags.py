@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,7 @@ class FeatureFlagRepository(BaseRepository[FeatureFlag]):
     def list_for_service(self, service_id: int) -> Sequence[FeatureFlag]:
         return self.db.query(FeatureFlag).filter(FeatureFlag.service_id == service_id).all()
 
-    def get_for_service(self, service_id: int, flag_id: int) -> Optional[FeatureFlag]:
+    def get_for_service(self, service_id: int, flag_id: int) -> FeatureFlag | None:
         return (
             self.db.query(FeatureFlag)
             .filter(FeatureFlag.service_id == service_id, FeatureFlag.id == flag_id)
@@ -38,7 +38,7 @@ class SecretRefRepository(BaseRepository[SecretReference]):
 
     def get_for_service(
         self, service_id: int, secret_id: int
-    ) -> Optional[SecretReference]:
+    ) -> SecretReference | None:
         return (
             self.db.query(SecretReference)
             .filter(

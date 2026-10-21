@@ -1,0 +1,8 @@
+{
+  "spec": {
+    "selector": {
+      "app": "devplane-api",
+      "version": "green"
+    }
+  }
+}

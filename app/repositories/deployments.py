@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
@@ -23,7 +23,7 @@ class DeploymentRepository(BaseRepository[Deployment]):
 
     def previous_successful(
         self, environment_id: int, before_id: int
-    ) -> Optional[Deployment]:
+    ) -> Deployment | None:
         return (
             self.db.query(Deployment)
             .filter(

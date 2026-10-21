@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -46,7 +46,7 @@ def test_environment_lifecycle_and_ttl_reaper(client: TestClient, auth_headers: 
     db = get_session()
     try:
         row = db.get(Environment, env["id"])
-        row.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        row.expires_at = datetime.now(UTC) - timedelta(minutes=1)
         db.commit()
     finally:
         db.close()

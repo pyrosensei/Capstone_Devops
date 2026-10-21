@@ -1,4 +1,3 @@
-from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from sqlalchemy.orm import Session
@@ -13,7 +12,7 @@ from app.workers.provisioning import simulate_deployment
 router = APIRouter(prefix="/api/v1", tags=["deployments"])
 
 
-@router.get("/environments/{env_id}/deployments", response_model=List[DeploymentRead])
+@router.get("/environments/{env_id}/deployments", response_model=list[DeploymentRead])
 def list_deployments(env_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return DeploymentService(db).list(env_id)
 

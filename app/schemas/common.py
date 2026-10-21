@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Annotated, Generic, List, Optional, TypeVar
+from typing import Annotated, Generic, TypeVar
 
 from pydantic import AfterValidator, BaseModel, ConfigDict
 
@@ -35,7 +35,7 @@ class Message(BaseModel):
 
 
 class Paginated(BaseModel, Generic[T]):
-    items: List[T]
+    items: list[T]
     total: int
 
 
@@ -44,4 +44,4 @@ class Health(BaseModel):
     app: str
     env: str
     time: datetime
-    redis: Optional[str] = None
+    redis: str | None = None

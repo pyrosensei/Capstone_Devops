@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import Field
 
@@ -25,5 +25,5 @@ class DeploymentRead(ORMModel):
 
 
 class DeploymentUpdate(ORMModel):
-    status: Optional[Literal["pending", "running", "succeeded", "failed", "rolled_back"]] = None
-    logs_snippet: Optional[str] = None
+    status: Literal["pending", "running", "succeeded", "failed", "rolled_back"] | None = None
+    logs_snippet: str | None = None

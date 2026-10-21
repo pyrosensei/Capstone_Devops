@@ -1,4 +1,5 @@
-from typing import Generic, Optional, Sequence, Type, TypeVar
+from collections.abc import Sequence
+from typing import Generic, TypeVar
 
 from sqlalchemy.orm import Session
 
@@ -8,11 +9,11 @@ ModelT = TypeVar("ModelT", bound=Base)
 
 
 class BaseRepository(Generic[ModelT]):
-    def __init__(self, db: Session, model: Type[ModelT]):
+    def __init__(self, db: Session, model: type[ModelT]):
         self.db = db
         self.model = model
 
-    def get(self, item_id: int) -> Optional[ModelT]:
+    def get(self, item_id: int) -> ModelT | None:
         return self.db.get(self.model, item_id)
 
     def list(self, skip: int = 0, limit: int = 100) -> Sequence[ModelT]:

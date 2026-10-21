@@ -1,6 +1,6 @@
 # Override to run the API/worker against PostgreSQL instead of SQLite.
 #
-#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build -d
+#   docker compose --profile postgres -f docker-compose.yml -f docker-compose.postgres.yml up --build -d
 #
 # The postgres service is moved out of the optional profile so it always starts.
 services:

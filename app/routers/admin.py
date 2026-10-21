@@ -1,4 +1,3 @@
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -45,11 +44,11 @@ def overview(db: Session = Depends(get_db), _: User = Depends(require_admin)):
     }
 
 
-@router.get("/audit", response_model=List[AuditRead])
+@router.get("/audit", response_model=list[AuditRead])
 def audit_logs(
     limit: int = Query(100, ge=1, le=1000),
-    action: Optional[str] = None,
-    resource_type: Optional[str] = None,
+    action: str | None = None,
+    resource_type: str | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
@@ -58,7 +57,7 @@ def audit_logs(
     )
 
 
-@router.get("/deployments", response_model=List[DeploymentRead])
+@router.get("/deployments", response_model=list[DeploymentRead])
 def recent_deployments(
     limit: int = Query(20, ge=1, le=200),
     db: Session = Depends(get_db),

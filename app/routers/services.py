@@ -1,4 +1,3 @@
-from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from sqlalchemy.orm import Session
@@ -23,7 +22,7 @@ from app.workers.provisioning import simulate_environment_provision
 router = APIRouter(prefix="/api/v1/services", tags=["services"])
 
 
-@router.get("", response_model=List[ServiceRead])
+@router.get("", response_model=list[ServiceRead])
 def list_services(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return CatalogServiceLayer(db).list()
 
@@ -66,7 +65,7 @@ def delete_service(
     CatalogServiceLayer(db).delete(service_id, user, request.client.host if request.client else "")
 
 
-@router.get("/{service_id}/environments", response_model=List[EnvironmentRead])
+@router.get("/{service_id}/environments", response_model=list[EnvironmentRead])
 def list_envs(service_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return EnvironmentService(db).list(service_id)
 
@@ -112,7 +111,7 @@ def terminate_env(
     )
 
 
-@router.get("/{service_id}/flags", response_model=List[FeatureFlagRead])
+@router.get("/{service_id}/flags", response_model=list[FeatureFlagRead])
 def list_flags(service_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return FeatureFlagService(db).list(service_id)
 
@@ -161,7 +160,7 @@ def delete_flag(
     )
 
 
-@router.get("/{service_id}/secrets", response_model=List[SecretRefRead])
+@router.get("/{service_id}/secrets", response_model=list[SecretRefRead])
 def list_secrets(service_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return SecretReferenceService(db).list(service_id)
 

@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,7 +33,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:8000,http://127.0.0.1:8000"
 
     @property
-    def cors_origin_list(self) -> List[str]:
+    def cors_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
 
     @property

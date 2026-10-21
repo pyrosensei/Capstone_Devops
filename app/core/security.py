@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -17,9 +17,9 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(subject: str, extra: Optional[dict[str, Any]] = None) -> str:
+def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> str:
     settings = get_settings()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     payload: dict[str, Any] = {"sub": subject, "exp": expire}
     if extra:
         payload.update(extra)

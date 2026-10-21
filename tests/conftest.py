@@ -11,6 +11,8 @@ os.environ["BOOTSTRAP_ADMIN_EMAIL"] = "admin@devplane.local"
 os.environ["BOOTSTRAP_ADMIN_PASSWORD"] = "admin123"
 os.environ["BOOTSTRAP_DEV_EMAIL"] = "dev@devplane.local"
 os.environ["BOOTSTRAP_DEV_PASSWORD"] = "dev123"
+# Keep ops-registry tests deterministic even when the host has a live kubeconfig.
+os.environ["KUBECONFIG"] = str(Path(__file__).parent / "nonexistent-kubeconfig")
 
 from app.core.config import get_settings
 

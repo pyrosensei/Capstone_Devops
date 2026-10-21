@@ -2,8 +2,8 @@
 # NGINX Ingress with canary-weight. The primary Service selects version=blue, so
 # canary pods never receive traffic through the main Service.
 #
-# Apply:  kubectl apply -f kubernetes/canary-patch.yaml
-# Remove: kubectl delete -f kubernetes/canary-patch.yaml
+# Apply:  kubectl apply -k kubernetes/overlays/canary
+# Remove: kubectl delete -f kubernetes/overlays/canary/canary.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:

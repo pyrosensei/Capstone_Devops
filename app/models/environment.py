@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,8 +14,8 @@ class Environment(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(64))
     env_type: Mapped[str] = mapped_column(String(32))  # ephemeral/dev/staging/prod
     status: Mapped[str] = mapped_column(String(32), default="provisioning")
-    ttl_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    ttl_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cluster_namespace: Mapped[str] = mapped_column(String(128), default="default")
 
     service = relationship("CatalogService", back_populates="environments")

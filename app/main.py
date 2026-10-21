@@ -10,7 +10,11 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app import __version__
+# Import models so SQLAlchemy registers metadata
+from app import (
+    __version__,
+    models,  # noqa: F401
+)
 from app.bootstrap import seed
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -19,9 +23,6 @@ from app.db.session import get_engine, get_session
 from app.metrics import REQUEST_COUNT, REQUEST_LATENCY, metrics_response
 from app.routers import admin, auth, deployments, ops, services, ui
 from app.services.metrics_refresh import refresh_business_metrics
-
-# Import models so SQLAlchemy registers metadata
-from app import models  # noqa: F401
 
 settings = get_settings()
 configure_logging(settings.log_level)

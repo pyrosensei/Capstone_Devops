@@ -61,7 +61,7 @@ resource "null_resource" "ingress" {
   depends_on = [null_resource.kind_cluster]
 
   provisioner "local-exec" {
-    command = "kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml && kubectl -n ingress-nginx wait --for=condition=Available deployment/ingress-nginx-controller --timeout=240s"
+    command = "kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml && kubectl -n ingress-nginx wait --for=condition=Available deployment/ingress-nginx-controller --timeout=240s && kubectl -n ingress-nginx wait --for=condition=complete job/ingress-nginx-admission-create --timeout=120s && kubectl -n ingress-nginx wait --for=condition=ready pod -l app.kubernetes.io/component=controller --timeout=180s"
   }
 }
 

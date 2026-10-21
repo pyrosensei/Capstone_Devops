@@ -1,4 +1,3 @@
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -10,7 +9,7 @@ class ServiceRepository(BaseRepository[CatalogService]):
     def __init__(self, db: Session):
         super().__init__(db, CatalogService)
 
-    def get_by_name(self, name: str) -> Optional[CatalogService]:
+    def get_by_name(self, name: str) -> CatalogService | None:
         return self.db.query(CatalogService).filter(CatalogService.name == name).first()
 
     def count(self) -> int:

@@ -1,4 +1,3 @@
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -10,7 +9,7 @@ class UserRepository(BaseRepository[User]):
     def __init__(self, db: Session):
         super().__init__(db, User)
 
-    def get_by_email(self, email: str) -> Optional[User]:
+    def get_by_email(self, email: str) -> User | None:
         return self.db.query(User).filter(User.email == email).first()
 
     def count_active(self) -> int:

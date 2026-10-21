@@ -62,8 +62,26 @@
       when: install_ingress
       changed_when: false
 
+    - name: Wait for the ingress admission certificate
+      ansible.builtin.command: >-
+        kubectl -n ingress-nginx wait --for=condition=complete
+        job/ingress-nginx-admission-create --timeout=120s
+      when: install_ingress
+      changed_when: false
+
+    - name: Wait for the ingress admission webhook
+      ansible.builtin.command: >-
+        kubectl -n ingress-nginx wait --for=condition=Ready
+        pod -l app.kubernetes.io/component=controller --timeout=180s
+      when: install_ingress
+      changed_when: false
+
     - name: Apply the kustomize overlay
       ansible.builtin.command: kubectl apply -k {{ k8s_overlay }}
+      register: k8s_apply
+      until: k8s_apply.rc == 0
+      retries: 5
+      delay: 5
       changed_when: true
 
     - name: Wait for the API rollout
