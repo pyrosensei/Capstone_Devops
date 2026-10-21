@@ -118,7 +118,7 @@ conda run -n capstone_devops pytest --cov=app --cov-report=term-missing
 conda run -n capstone_devops ruff check app tests worker
 ```
 
-Current baseline: 27 tests passing, 92% statement coverage. The suite covers authentication and roles, catalog, environments and TTL, deployments and rollback, flags, secret references, audit immutability, metrics, health, ops stubs, and validation errors.
+Current baseline: 28 tests passing, 92% statement coverage. The suite covers authentication and roles, catalog, environments and TTL, deployments and rollback, flags, secret references, audit immutability, metrics, health, ops stubs, and validation errors.
 
 ## Docker Compose
 
@@ -313,6 +313,7 @@ Public registration always creates a `developer`. The request schema rejects a `
 - Kubernetes Secrets are referenced through environment variables; `.env` is ignored by Git.
 - Self-registration always creates a developer account; the API does not accept a role during signup.
 - Outside development, startup fails if `SECRET_KEY` is empty, a known placeholder, or shorter than 32 characters.
+- Ops registry queries are restricted to `OPS_ALLOWED_NAMESPACES` (default `default,devplane`) instead of trusting arbitrary user-supplied namespaces.
 - The API's secret-reference feature stores only provider and path metadata.
 - RBAC limits the in-cluster Kubernetes client to pods, logs, and deployments.
 - Optional NetworkPolicy is provided in `kubernetes/security/networkpolicy.yaml`.
@@ -367,7 +368,7 @@ docs/                Phase documentation, deployment/security notes, screenshots
 
 Validated on Windows with Docker Desktop and kind:
 
-- `pytest`: 27 passed; 92% statement coverage.
+- `pytest`: 28 passed; 92% statement coverage.
 - `ruff check app tests worker`: passed.
 - `docker build`: multi-stage image built successfully.
 - Docker Compose API + worker + Redis: healthy; smoke test passed.

@@ -77,6 +77,20 @@ def test_registration_cannot_self_assign_admin(client: TestClient):
     assert client.get("/api/v1/admin/audit", headers=headers).status_code == 403
 
 
+def test_ops_namespace_is_allowlisted(client: TestClient, auth_headers: dict[str, str]):
+    denied = client.get(
+        "/api/v1/ops/pods?namespace=kube-system",
+        headers=auth_headers,
+    )
+    assert denied.status_code == 403
+
+    denied_logs = client.get(
+        "/api/v1/ops/logs?pod=test&namespace=kube-system",
+        headers=auth_headers,
+    )
+    assert denied_logs.status_code == 403
+
+
 def test_developer_role_is_limited(client: TestClient):
     headers = _developer_headers(client)
     service = client.post(

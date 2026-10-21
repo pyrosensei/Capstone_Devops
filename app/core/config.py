@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     bootstrap_dev_password: str = "dev123"
 
     kubeconfig: str = ""
+    ops_allowed_namespaces: str = "default,devplane"
     jenkins_url: str = "http://localhost:8080"
     jenkins_user: str = ""
     jenkins_token: str = ""
@@ -67,6 +68,14 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
+
+    @property
+    def ops_allowed_namespace_list(self) -> list[str]:
+        return [
+            item.strip()
+            for item in self.ops_allowed_namespaces.split(",")
+            if item.strip()
+        ]
 
     @property
     def is_sqlite(self) -> bool:

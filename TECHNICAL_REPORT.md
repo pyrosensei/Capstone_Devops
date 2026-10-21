@@ -179,7 +179,7 @@ conda run -n capstone_devops python -m pytest --cov=app --cov-report=term-missin
 
 Result:
 
-- 27 tests passed.
+- 28 tests passed.
 - 92% statement coverage.
 - Covered: auth and roles, self-registration privilege escalation, secret-key configuration, catalog, environment lifecycle and TTL, duplicate handling, deployments and rollback, flags, secret references, audit immutability, admin metrics, uptime/readiness, validation, ops stubs.
 
@@ -234,7 +234,9 @@ Jenkins, SonarQube, Trivy, Argo CD, and cloud providers are fully declared/confi
 - Secrets are injected through Kubernetes Secrets or local `.env`; `.env` is ignored.
 - The platform stores only secret references, not values.
 - JWT signing keys and bootstrap passwords are configurable and must be rotated.
-- RBAC restricts the Kubernetes client's service account.
+- Public registration cannot assign roles; signup always creates a developer.
+- Non-development startup rejects placeholder or short JWT keys.
+- RBAC restricts the Kubernetes client's service account, and the ops API enforces a namespace allowlist.
 - An optional NetworkPolicy limits pod ingress/egress.
 - The Jenkins pipeline supports SonarQube and Trivy but treats them as optional so the demo does not require a scanner server.
 - The audit trail is append-only at the ORM layer.

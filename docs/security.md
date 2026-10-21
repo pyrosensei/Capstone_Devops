@@ -46,6 +46,7 @@ For production, use an external secret store (Vault, AWS Secrets Manager, Azure 
 ## Kubernetes
 
 - `kubernetes/base/rbac.yaml` grants the service account only the reads needed by the ops registry (pods, logs, deployments).
+- The ops API enforces an explicit namespace allowlist (`OPS_ALLOWED_NAMESPACES`, default `default,devplane`). Requests for other namespaces return 403, so a developer account cannot use a local admin kubeconfig to query cluster-wide workloads.
 - `kubernetes/base/poddisruptionbudget.yaml` protects API availability.
 - `kubernetes/security/networkpolicy.yaml` is an optional policy; apply it deliberately because it can block DNS/Redis/ingress depending on your cluster CNI.
 - Ingress and Services are internal by default; expose them only through the intended ingress controller.
