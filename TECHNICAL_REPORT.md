@@ -92,6 +92,8 @@ The audit table is protected by SQLAlchemy `before_update` and `before_delete` l
 - Local registration and login with password hashing.
 - JWT bearer tokens signed with `SECRET_KEY`.
 - `admin` and `developer` roles enforced through dependencies.
+- Public registration always creates a developer; the signup schema rejects a `role` field to prevent privilege escalation.
+- Outside development, startup refuses an empty, placeholder, or short `SECRET_KEY`.
 - Bootstrap seeding creates one admin and one developer for local demos.
 - Internal `.local` email addresses are accepted through a custom Pydantic email type.
 
@@ -177,9 +179,9 @@ conda run -n capstone_devops python -m pytest --cov=app --cov-report=term-missin
 
 Result:
 
-- 23 tests passed.
+- 27 tests passed.
 - 92% statement coverage.
-- Covered: auth and roles, catalog, environment lifecycle and TTL, duplicate handling, deployments and rollback, flags, secret references, audit immutability, admin metrics, uptime/readiness, validation, ops stubs.
+- Covered: auth and roles, self-registration privilege escalation, secret-key configuration, catalog, environment lifecycle and TTL, duplicate handling, deployments and rollback, flags, secret references, audit immutability, admin metrics, uptime/readiness, validation, ops stubs.
 
 Lint:
 
@@ -239,7 +241,7 @@ Jenkins, SonarQube, Trivy, Argo CD, and cloud providers are fully declared/confi
 
 Residual risks:
 
-- Local JWT with a default development key if `.env` is not changed.
+- Local JWT with a development-only placeholder key; non-development startup now refuses it.
 - Demo bootstrap passwords are well-known.
 - SQLite with multiple pods is not a production data architecture.
 - No external identity provider, rate limiting, or mTLS.
@@ -249,6 +251,8 @@ Residual risks:
 
 | Challenge | Resolution |
 | --- | --- |
+| Self-registration accepted a client-supplied admin role | Removed `role` from the signup schema, rejected unknown fields, forced `developer`, and added an escalation regression test |
+| Default JWT signing key was usable outside development | Added a settings validator that refuses empty, placeholder, or short keys unless `APP_ENV` is development/test |
 | Email validation rejected `.local` demo accounts | Added an internal email type that permits local domains while still normalizing input |
 | Newer Starlette/Jinja TemplateResponse signature | Switched to the request-first call form |
 | SQLite/Compose API failed at startup with a stale `SessionLocal` reference | Replaced by-value sessionmaker imports with `get_session()` after engine initialization |

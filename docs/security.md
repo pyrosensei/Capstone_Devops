@@ -7,6 +7,7 @@
 - Developers can manage catalog entries, environments, deployments, flags, and secret references.
 - Admin-only: service deletion, deployment status override, audit log, platform metrics, and the manual TTL reaper.
 - Bootstrap accounts are seeded for the demo. Change `BOOTSTRAP_ADMIN_PASSWORD` and `BOOTSTRAP_DEV_PASSWORD` before any shared environment.
+- Public registration always creates a `developer`. The signup schema does not define a `role` field and rejects unknown fields, so a client cannot self-assign admin.
 - Registration accepts internal `.local` addresses for the offline demo; this is a deliberate validation exception.
 
 The demo does not include OIDC/SSO, MFA, refresh-token rotation, or account lockout. Those are listed as future work.
@@ -16,8 +17,16 @@ The demo does not include OIDC/SSO, MFA, refresh-token rotation, or account lock
 - `.env` is ignored by Git; `.env.example` contains placeholders only.
 - Kubernetes Secrets hold the JWT key and bootstrap passwords.
 - The API's secret-reference feature stores provider and path metadata, not secret values.
+- Outside `development`/`test`, settings validation refuses an empty `SECRET_KEY`, known placeholders, keys starting with `change-me`/`replace-me`, and keys shorter than 32 characters.
+- Compose requires `SECRET_KEY` to be set and fails fast if it is missing or empty.
 - Compose defaults are demo values and must be overridden.
 - The repository includes no registry, Sonar, Slack, Jenkins, or cloud credentials.
+
+Generate a key before starting Docker, Kubernetes, staging, or production:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
 
 For production, use an external secret store (Vault, AWS Secrets Manager, Azure Key Vault) and a controller such as External Secrets Operator rather than plain Kubernetes Secrets.
 
@@ -73,7 +82,7 @@ conda run -n capstone_devops pip-audit -r requirements.txt
 
 ## Demo hardening checklist
 
-1. Replace `SECRET_KEY` and both bootstrap passwords.
+1. Generate and set a unique `SECRET_KEY`, then replace both bootstrap passwords. Non-development startup refuses the placeholder key.
 2. Change the Grafana admin password.
 3. Set a PostgreSQL password if using the override.
 4. Keep `.env` out of Git.

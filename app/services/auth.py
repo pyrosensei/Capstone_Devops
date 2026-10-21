@@ -16,12 +16,11 @@ class AuthService:
     def register(self, payload: UserCreate, actor_ip: str = "") -> User:
         if self.repo.get_by_email(payload.email):
             raise ConflictError("Email already registered")
-        role = payload.role if payload.role in {"admin", "developer"} else "developer"
         user = User(
             email=payload.email,
             full_name=payload.full_name,
             hashed_password=hash_password(payload.password),
-            role=role,
+            role="developer",
         )
         user = self.repo.add(user)
         audit.record(

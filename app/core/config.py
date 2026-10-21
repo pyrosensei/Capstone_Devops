@@ -1,6 +1,15 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEVELOPMENT_ENVIRONMENTS = {"development", "dev", "local", "test", "testing"}
+_SECRET_KEY_PLACEHOLDERS = {
+    "change-me",
+    "change-me-in-compose",
+    "change-me-to-a-long-random-string",
+    "change-me-via-sealed-secrets-or-sops",
+}
 
 
 class Settings(BaseSettings):
@@ -31,6 +40,29 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:8000,http://127.0.0.1:8000"
+
+    @model_validator(mode="after")
+    def validate_secret_key(self) -> "Settings":
+        key = self.secret_key.strip()
+        if not key:
+            raise ValueError("SECRET_KEY must not be empty")
+
+        env = self.app_env.strip().lower()
+        if env in _DEVELOPMENT_ENVIRONMENTS:
+            return self
+
+        normalized = key.lower()
+        if (
+            normalized in _SECRET_KEY_PLACEHOLDERS
+            or normalized.startswith(("change-me", "replace-me", "changeme"))
+            or len(key) < 32
+        ):
+            raise ValueError(
+                f"SECRET_KEY must be a unique value of at least 32 characters when "
+                f"APP_ENV={self.app_env!r}. Generate one with: "
+                'python -c "import secrets; print(secrets.token_urlsafe(48))"'
+            )
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:
