@@ -39,6 +39,16 @@ if [ "$applied" != true ]; then
   echo "kubectl apply failed after 5 attempts" >&2
   exit 1
 fi
+
+echo "Generating application secret..."
+SECRET_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n')
+kubectl -n devplane create secret generic devplane-secrets \
+  --from-literal=SECRET_KEY="$SECRET_KEY" \
+  --from-literal=BOOTSTRAP_ADMIN_PASSWORD=admin123 \
+  --from-literal=BOOTSTRAP_DEV_PASSWORD=dev123 \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n devplane rollout restart deploy/devplane-api deploy/devplane-worker
+
 kubectl -n devplane rollout status deploy/devplane-api --timeout=240s
 kubectl -n devplane rollout status deploy/devplane-worker --timeout=240s
 

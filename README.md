@@ -178,7 +178,7 @@ Linux/macOS:
 ./scripts/kind-up.sh
 ```
 
-The script creates the `devplane-kind` cluster, installs ingress-nginx and metrics-server, builds and loads `devplane-api:local`, then applies `kubernetes/overlays/dev`.
+The script creates the `devplane-kind` cluster, installs ingress-nginx and metrics-server, builds and loads `devplane-api:local`, then applies `kubernetes/overlays/dev`. It generates a fresh `SECRET_KEY` and updates the `devplane-secrets` Secret before restarting the API and worker; the placeholder in `kubernetes/base/secret.yaml` is not usable for a non-development deployment. If applying the manifests manually, set a strong key first.
 
 ### Access
 
@@ -235,10 +235,11 @@ kind delete cluster --name devplane-kind
 ```powershell
 helm lint helm/devplane
 helm template devplane helm/devplane
-helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace
+$secret = python -c "import secrets; print(secrets.token_urlsafe(48))"
+helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace --set-string secret.SECRET_KEY=$secret
 ```
 
-The chart includes API and worker deployments, Service, Ingress, HPA, PVC, Redis, RBAC, ConfigMap, Secret, and NOTES. Override `image.repository`, `image.tag`, `ingress.host`, secrets, and resources in a values file for a real environment.
+The chart includes API and worker deployments, Service, Ingress, HPA, PVC, Redis, RBAC, ConfigMap, Secret, and NOTES. Override `image.repository`, `image.tag`, `ingress.host`, secrets, and resources in a values file for a real environment. The chart's default `secret.SECRET_KEY` is a placeholder; a real install must override it.
 
 ## CI/CD and GitOps
 

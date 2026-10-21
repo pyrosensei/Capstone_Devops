@@ -69,6 +69,20 @@ for ($attempt = 1; $attempt -le 5; $attempt++) {
 if (-not $applied) {
     throw "kubectl apply failed after 5 attempts"
 }
+
+Write-Host "Generating application secret..."
+$secretBytes = New-Object byte[] 48
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($secretBytes)
+$secretKey = [Convert]::ToBase64String($secretBytes)
+kubectl -n devplane create secret generic devplane-secrets `
+    --from-literal=SECRET_KEY="$secretKey" `
+    --from-literal=BOOTSTRAP_ADMIN_PASSWORD=admin123 `
+    --from-literal=BOOTSTRAP_DEV_PASSWORD=dev123 `
+    --dry-run=client -o yaml | kubectl apply -f -
+Assert-ExitCode "generate application secret"
+kubectl -n devplane rollout restart deploy/devplane-api deploy/devplane-worker
+Assert-ExitCode "restart workloads with generated secret"
+
 kubectl -n devplane rollout status deploy/devplane-api --timeout=240s
 Assert-ExitCode "api rollout"
 kubectl -n devplane rollout status deploy/devplane-worker --timeout=240s
