@@ -51,9 +51,9 @@ def simulate_deployment(deployment_id: int) -> None:
         mode = "rolled back" if dep.is_rollback else "applied"
         dep.status = "succeeded"
         dep.logs_snippet = (
-            f"[worker] {mode} version {dep.version} via {dep.strategy}\n"
-            f"[worker] health checks passed after {delay}s\n"
-            "[worker] deployment complete"
+            f"[simulated-worker] {mode} version {dep.version} via {dep.strategy}\n"
+            f"[simulated-worker] health checks passed after {delay}s\n"
+            "[simulated-worker] no cluster resources were mutated"
         )
         db.add(dep)
         db.commit()

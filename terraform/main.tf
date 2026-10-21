@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.5"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -21,13 +25,33 @@ module "kind_cluster" {
   install_ingress = var.install_ingress
 }
 
+resource "random_password" "secret_key" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "postgres_password" {
+  length  = 32
+  special = false
+}
+
+locals {
+  secret_key        = var.secret_key != "" ? var.secret_key : random_password.secret_key.result
+  postgres_password = random_password.postgres_password.result
+  database_url      = "postgresql+psycopg2://devplane:${local.postgres_password}@devplane-postgres:5432/devplane"
+}
+
 module "app_config" {
-  source          = "./modules/app_config"
-  namespace       = var.namespace
-  image_tag       = var.image_tag
-  secret_key      = var.secret_key
-  repo_root       = var.repo_root
-  apply_manifests = var.apply_manifests
+  source                   = "./modules/app_config"
+  namespace                = var.namespace
+  image_tag                = var.image_tag
+  secret_key               = local.secret_key
+  postgres_password        = local.postgres_password
+  database_url             = local.database_url
+  bootstrap_admin_password = var.bootstrap_admin_password
+  bootstrap_dev_password   = var.bootstrap_dev_password
+  repo_root                = var.repo_root
+  apply_manifests          = var.apply_manifests
 
   depends_on = [module.kind_cluster]
 }

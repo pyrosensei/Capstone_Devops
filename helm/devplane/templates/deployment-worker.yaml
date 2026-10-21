@@ -34,20 +34,11 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           volumeMounts:
-            - name: data
-              mountPath: /app/data
             - name: tmp
               mountPath: /tmp
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
       volumes:
-        - name: data
-          {{- if .Values.persistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ include "devplane.fullname" . }}-data
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
         - name: tmp
           emptyDir: {}
 {{- end }}

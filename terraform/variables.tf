@@ -45,7 +45,22 @@ variable "image_tag" {
 }
 
 variable "secret_key" {
-  type      = string
-  default   = "change-me"
-  sensitive = true
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Optional JWT signing key. Leave empty to generate one with Terraform."
+}
+
+variable "bootstrap_admin_password" {
+  type        = string
+  default     = "admin123"
+  sensitive   = true
+  description = "Demo bootstrap admin password. The dev overlay sets DEMO_MODE=true."
+}
+
+variable "bootstrap_dev_password" {
+  type        = string
+  default     = "dev123"
+  sensitive   = true
+  description = "Demo bootstrap developer password. The dev overlay sets DEMO_MODE=true."
 }

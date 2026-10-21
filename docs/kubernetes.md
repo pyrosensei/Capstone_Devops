@@ -22,8 +22,9 @@ The script:
 3. Installs ingress-nginx and waits for its admission webhook.
 4. Installs metrics-server and adds `--kubelet-insecure-tls` for kind.
 5. Builds `devplane-api:local` and loads it into the node.
-6. Applies `kubernetes/overlays/dev` with retries.
-7. Waits for API and worker rollouts.
+6. Creates the `devplane` namespace and the `devplane-secrets` Secret with a generated JWT key, PostgreSQL password, matching `DATABASE_URL`, and bootstrap passwords.
+7. Applies `kubernetes/overlays/dev` with retries.
+8. Waits for PostgreSQL, API, and worker rollouts. The API entrypoint runs `alembic upgrade head`; the migration takes a PostgreSQL advisory lock so concurrent replicas cannot race.
 
 Linux/macOS: `./scripts/kind-up.sh`.
 
@@ -57,8 +58,9 @@ Then use <http://127.0.0.1:8001> and run the smoke test with `--base-url http://
 | --- | --- |
 | Namespace `devplane` | Isolation |
 | ConfigMap `devplane-config` | Non-secret runtime configuration |
-| Secret `devplane-secrets` | JWT key and bootstrap passwords |
-| PVC `devplane-data` | SQLite data for the demo |
+| Secret `devplane-secrets` | JWT key, PostgreSQL password, `DATABASE_URL`, bootstrap passwords (created by the script, not by Kustomize) |
+| PVC `devplane-postgres-data` | PostgreSQL data |
+| Deployment/Service `devplane-postgres` | PostgreSQL 16 backing store |
 | Deployment `devplane-api` | FastAPI API, two replicas |
 | Deployment `devplane-worker` | Provisioning/TTL worker |
 | Deployment/Service `devplane-redis` | Redis |
@@ -89,7 +91,7 @@ kubectl -n devplane scale deploy/devplane-api --replicas=3
 
 The HPA needs metrics-server. The kind script installs it and adds `--kubelet-insecure-tls`.
 
-**SQLite warning:** the demo stores data on a ReadWriteOnce PVC. Multiple API pods on one kind node can share it, but this is not a production data pattern. Use PostgreSQL and a proper ReadWriteMany/database service before scaling across nodes.
+**Database:** the demo uses a PostgreSQL Deployment with a ReadWriteOnce PVC. This is sufficient for the single-node kind demo; for production, use a managed PostgreSQL service (`externalDatabase.url` in Helm) or a highly available database.
 
 ## Delivery strategies
 
@@ -164,12 +166,16 @@ Change the host port in `kubernetes/kind-config.yaml` before creating the cluste
 ## Helm alternative
 
 ```powershell
-helm lint helm/devplane
-helm template devplane helm/devplane
-helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace
+$secret = python -c "import secrets; print(secrets.token_urlsafe(48))"
+$pg = python -c "import secrets; print(secrets.token_urlsafe(24))"
+$admin = python -c "import secrets; print(secrets.token_urlsafe(18))"
+$dev = python -c "import secrets; print(secrets.token_urlsafe(18))"
+helm lint helm/devplane --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev
+helm template devplane helm/devplane --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev
+helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev
 ```
 
-The chart creates its own Secret and ConfigMap. Set real values with `--set` or a values file; do not use the demo defaults in a shared environment.
+The chart creates its own Secret and ConfigMap, PostgreSQL Deployment/PVC, Redis, API/worker, HPA, and Ingress. All four secret values are required and have no usable defaults. To use a managed database instead, set `postgresql.enabled=false` and provide `externalDatabase.url`.
 
 ## Cleanup
 

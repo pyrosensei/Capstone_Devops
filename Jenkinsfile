@@ -119,13 +119,14 @@ pipeline {
       }
     }
 
-    stage('Image scan (optional)') {
+    stage('Image scan') {
       steps {
         sh '''
           if command -v trivy >/dev/null 2>&1; then
-            trivy image --severity HIGH,CRITICAL --exit-code 0 --no-progress ${IMAGE}:${TAG}
+            TRIVY_EXIT_CODE=${TRIVY_EXIT_CODE:-1}
+            trivy image --severity HIGH,CRITICAL --exit-code "$TRIVY_EXIT_CODE" --no-progress ${IMAGE}:${TAG}
           else
-            echo "trivy not installed; skipping image scan"
+            echo "trivy not installed; image scan skipped (install trivy to enforce the gate)"
           fi
         '''
       }
@@ -151,12 +152,21 @@ pipeline {
       steps {
         sh '''
           set -eux
+          if ! kubectl -n devplane get secret devplane-secrets >/dev/null 2>&1; then
+            echo "devplane-secrets is missing; run scripts/kind-up first or create the Secret" >&2
+            exit 1
+          fi
           if command -v kind >/dev/null 2>&1 && kind get clusters | grep -qx devplane-kind; then
             kind load docker-image ${IMAGE}:${TAG} --name devplane-kind
-            kubectl -n devplane set image deploy/devplane-api api=${IMAGE}:${TAG}
           fi
           kubectl apply -k ${K8S_OVERLAY}
+          if command -v kind >/dev/null 2>&1 && kind get clusters | grep -qx devplane-kind; then
+            kubectl -n devplane set image deploy/devplane-api api=${IMAGE}:${TAG}
+            kubectl -n devplane set image deploy/devplane-worker worker=${IMAGE}:${TAG}
+          fi
+          kubectl -n devplane rollout status deploy/devplane-postgres --timeout=180s
           kubectl -n devplane rollout status deploy/devplane-api --timeout=180s
+          kubectl -n devplane rollout status deploy/devplane-worker --timeout=180s
         '''
       }
     }

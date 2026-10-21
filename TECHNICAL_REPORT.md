@@ -1,4 +1,4 @@
-# Technical Report - DevPlane Internal Developer Platform
+# Tec hnical Report - DevPlane Internal Developer Platform
 
 ## 1. Abstract
 
@@ -179,9 +179,9 @@ conda run -n capstone_devops python -m pytest --cov=app --cov-report=term-missin
 
 Result:
 
-- 28 tests passed.
-- 92% statement coverage.
-- Covered: auth and roles, self-registration privilege escalation, secret-key configuration, catalog, environment lifecycle and TTL, duplicate handling, deployments and rollback, flags, secret references, audit immutability, admin metrics, uptime/readiness, validation, ops stubs.
+- 37 tests passed.
+- 95% statement coverage.
+- Covered: auth and roles, inactive-user rejection, self-registration privilege escalation, secret-key/JWT configuration, demo-mode gating, catalog, environment lifecycle and TTL, environments ownership and status authorization, duplicate handling, deployments and rollback, simulated execution reporting, flags, secret references, audit immutability, admin metrics, uptime/readiness, validation, and honest ops stubs.
 
 Lint:
 
@@ -204,8 +204,9 @@ Result: all checks passed.
 
 - kind cluster `devplane-kind` created with one control-plane node.
 - ingress-nginx and metrics-server installed.
-- API `2/2`, worker `1/1`, Redis `1/1`.
-- PVC bound.
+- API `2/2`, worker `1/1`, Postgres `1/1`, Redis `1/1`.
+- PostgreSQL PVC `devplane-postgres-data` bound.
+- Alembic migrations applied through `scripts/entrypoint.sh`; two API replicas serialized migrations with a PostgreSQL advisory lock.
 - HPA active at roughly `cpu: 5-6%/70%`, min 2, max 6.
 - Ingress reachable on host port 8081 with `Host: devplane.local`, HTTP 200.
 - Latest image loaded into kind with `kind load docker-image`; API and worker rolled out successfully.
@@ -217,8 +218,8 @@ Result: all checks passed.
 - `kubectl kustomize kubernetes/overlays/canary`: passed.
 - `docker compose config`: passed.
 - PostgreSQL override with `--profile postgres`: passed.
-- `helm lint helm/devplane`: passed.
-- `helm template helm/devplane`: passed.
+- `helm lint helm/devplane` with required secret values: passed.
+- `helm template helm/devplane` with required secret values: passed (one Secret, one API Deployment, no duplicate resources).
 - `terraform fmt -check -recursive terraform`, `terraform validate`: passed.
 - `terraform plan`: generated the expected two local config files without errors.
 - Ansible `--syntax-check` for `site.yml`, `k8s-deploy.yml`, and `install-tools.yml`: passed (run from WSL because Ansible does not support a Windows control node).
@@ -238,14 +239,14 @@ Jenkins, SonarQube, Trivy, Argo CD, and cloud providers are fully declared/confi
 - Non-development startup rejects placeholder or short JWT keys.
 - RBAC restricts the Kubernetes client's service account, and the ops API enforces a namespace allowlist.
 - An optional NetworkPolicy limits pod ingress/egress.
-- The Jenkins pipeline supports SonarQube and Trivy but treats them as optional so the demo does not require a scanner server.
+- The Jenkins pipeline supports optional SonarQube and a Trivy HIGH/CRITICAL gate that fails the build by default; scanners must be installed on the agent.
 - The audit trail is append-only at the ORM layer.
 
 Residual risks:
 
 - Local JWT with a development-only placeholder key; non-development startup now refuses it.
 - Demo bootstrap passwords are well-known.
-- SQLite with multiple pods is not a production data architecture.
+- The Kubernetes demo uses single-node PostgreSQL storage; production needs a managed or highly available database.
 - No external identity provider, rate limiting, or mTLS.
 - Stubs could be mistaken for live integrations if the `source` field is ignored; the UI and docs expose the distinction.
 
@@ -264,7 +265,7 @@ Residual risks:
 | metrics-server patch failed through inline PowerShell JSON | Moved the JSON patch to `kubernetes/metrics-server-patch.json` |
 | Unit tests depended on the host kubeconfig | Forced a nonexistent kubeconfig in test fixtures |
 | Docker Hub CloudFront EOF while pulling Redis | Retried with a compatible tag and tagged locally; documented transient registry behavior |
-| SQLite multi-replica risk | Explicitly documented as a single-node demo limitation; PostgreSQL override provided |
+| SQLite multi-replica risk | Added an in-cluster PostgreSQL Deployment for Kubernetes and kept SQLite for local/demo use |
 
 ## 10. Future scope
 

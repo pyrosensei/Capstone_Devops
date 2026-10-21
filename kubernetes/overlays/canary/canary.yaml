@@ -44,8 +44,6 @@ spec:
             - secretRef:
                 name: devplane-secrets
           volumeMounts:
-            - name: data
-              mountPath: /app/data
             - name: tmp
               mountPath: /tmp
           readinessProbe:
@@ -65,9 +63,6 @@ spec:
             capabilities:
               drop: ["ALL"]
       volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: devplane-data
         - name: tmp
           emptyDir: {}
 ---

@@ -108,7 +108,7 @@ Change these credentials in `.env` before any shared demo. Never commit `.env`.
 conda run -n capstone_devops alembic upgrade head
 ```
 
-Local SQLite startup also calls `create_all` for convenience. The Docker entrypoint runs Alembic when `RUN_MIGRATIONS=1`.
+Local SQLite startup calls `create_all` for convenience. PostgreSQL deployments rely on Alembic; the Docker entrypoint runs `alembic upgrade head` when `RUN_MIGRATIONS=1`.
 
 ## Tests and lint
 
@@ -118,7 +118,7 @@ conda run -n capstone_devops pytest --cov=app --cov-report=term-missing
 conda run -n capstone_devops ruff check app tests worker
 ```
 
-Current baseline: 28 tests passing, 92% statement coverage. The suite covers authentication and roles, catalog, environments and TTL, deployments and rollback, flags, secret references, audit immutability, metrics, health, ops stubs, and validation errors.
+Current baseline: 37 tests passing, 95% statement coverage. The suite covers authentication and roles, security configuration, catalog, environments and TTL, deployments and rollback, flags, secret references, audit immutability, metrics, health, ops stubs, environment ownership checks, and validation errors.
 
 ## Docker Compose
 
@@ -178,7 +178,7 @@ Linux/macOS:
 ./scripts/kind-up.sh
 ```
 
-The script creates the `devplane-kind` cluster, installs ingress-nginx and metrics-server, builds and loads `devplane-api:local`, then applies `kubernetes/overlays/dev`. It generates a fresh `SECRET_KEY` and updates the `devplane-secrets` Secret before restarting the API and worker; the placeholder in `kubernetes/base/secret.yaml` is not usable for a non-development deployment. If applying the manifests manually, set a strong key first.
+The script creates the `devplane-kind` cluster, installs ingress-nginx and metrics-server, builds and loads `devplane-api:local`, then creates the `devplane` namespace and the `devplane-secrets` Secret **before** applying `kubernetes/overlays/dev`. The Secret contains a generated `SECRET_KEY`, a generated PostgreSQL password, a matching `DATABASE_URL`, and the bootstrap passwords. The API and worker run Alembic automatically and use the in-cluster PostgreSQL instance. The repository does not ship a usable Secret manifest; `kubernetes/base/secret.example.yaml` documents the required keys for manual installs.
 
 ### Access
 
@@ -233,17 +233,20 @@ kind delete cluster --name devplane-kind
 ## Helm
 
 ```powershell
-helm lint helm/devplane
-helm template devplane helm/devplane
 $secret = python -c "import secrets; print(secrets.token_urlsafe(48))"
-helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace --set-string secret.SECRET_KEY=$secret
+$pg = python -c "import secrets; print(secrets.token_urlsafe(24))"
+$admin = python -c "import secrets; print(secrets.token_urlsafe(18))"
+$dev = python -c "import secrets; print(secrets.token_urlsafe(18))"
+helm lint helm/devplane --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev
+helm template devplane helm/devplane --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev
+helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev
 ```
 
-The chart includes API and worker deployments, Service, Ingress, HPA, PVC, Redis, RBAC, ConfigMap, Secret, and NOTES. Override `image.repository`, `image.tag`, `ingress.host`, secrets, and resources in a values file for a real environment. The chart's default `secret.SECRET_KEY` is a placeholder; a real install must override it.
+The chart includes API and worker deployments, a PostgreSQL Deployment and PVC, Redis, Services, Ingress, HPA, RBAC, ConfigMap, Secret, and NOTES. All four secret values (`SECRET_KEY`, `POSTGRES_PASSWORD`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_DEV_PASSWORD`) are required and have no usable defaults. Override `image.repository`, `image.tag`, `ingress.host`, and resources in a values file for a real environment; use `externalDatabase.url` with `postgresql.enabled=false` to use a managed database.
 
 ## CI/CD and GitOps
 
-- `Jenkinsfile` runs checkout, Python environment setup, lint, tests with coverage/JUnit, optional SonarQube, Docker build with cache, optional Trivy scan, optional registry push, and optional Kubernetes deploy.
+- `Jenkinsfile` runs checkout, Python environment setup, lint, tests with coverage/JUnit, optional SonarQube, Docker build with cache, a blocking Trivy scan (`TRIVY_EXIT_CODE=1` by default), optional registry push, and optional Kubernetes deploy.
 - Jenkins parameters: `IMAGE_REGISTRY`, `DEPLOY_TO_K8S`, `K8S_OVERLAY`.
 - `gitops/argocd/application.yaml` points Argo CD at `kubernetes/overlays/dev` on `main`.
 - Argo CD is declared in Git but is not installed by the project scripts; install it separately if you want to demonstrate sync.
@@ -319,7 +322,7 @@ Public registration always creates a `developer`. The request schema rejects a `
 - RBAC limits the in-cluster Kubernetes client to pods, logs, and deployments.
 - Optional NetworkPolicy is provided in `kubernetes/security/networkpolicy.yaml`.
 - JWT signing and bootstrap credentials must be changed for any shared demo.
-- Optional image scanning with Trivy in Jenkins and optional SonarQube.
+- Blocking image scanning with Trivy in Jenkins (HIGH/CRITICAL) and optional SonarQube.
 
 Details: [docs/security.md](docs/security.md).
 
@@ -369,11 +372,11 @@ docs/                Phase documentation, deployment/security notes, screenshots
 
 Validated on Windows with Docker Desktop and kind:
 
-- `pytest`: 28 passed; 92% statement coverage.
+- `pytest`: 37 passed; 95% statement coverage.
 - `ruff check app tests worker`: passed.
 - `docker build`: multi-stage image built successfully.
 - Docker Compose API + worker + Redis: healthy; smoke test passed.
-- kind cluster: API 2/2, worker 1/1, Redis 1/1, PVC bound, HPA active.
+- kind cluster: API 2/2, worker 1/1, Postgres 1/1, Redis 1/1, Postgres PVC bound, HPA active.
 - Ingress through `http://127.0.0.1:8081` with `Host: devplane.local`: HTTP 200.
 - Cluster smoke test: passed, including `source: kubernetes` for the ops registry.
 - `kubectl kustomize` for dev and canary overlays: passed.
@@ -382,7 +385,7 @@ Validated on Windows with Docker Desktop and kind:
 - Observability: Prometheus targets UP, Grafana datasources/dashboard provisioned, Loki receiving API logs.
 - `helm lint` and `helm template`: passed.
 - Terraform 1.16.6: `fmt -check`, `validate`, and `plan` passed.
-- Ansible 2.19: all three playbooks pass `--syntax-check` (run from WSL).
+- Ansible core 2.21: all three playbooks pass `--syntax-check` (run from WSL).
 
 Jenkins, Argo CD, SonarQube, Trivy, and cloud integrations are defined in the repository but require their own external servers/accounts. They were not executed as live services during local validation.
 
@@ -390,7 +393,7 @@ Jenkins, Argo CD, SonarQube, Trivy, and cloud integrations are defined in the re
 
 - Provisioning and deployment are simulated. The worker flips statuses and writes log snippets; no real workload is deployed by the control plane.
 - Terraform and Jenkins ops tools are read-only summaries. Jenkins requires credentials and Terraform requires a generated `tfplan.json` for live values.
-- The default Kubernetes setup uses SQLite on a ReadWriteOnce PVC with multiple API replicas. This is suitable for a single-node kind demo; use PostgreSQL before scaling API replicas across nodes.
+- The Kubernetes demo uses a single PostgreSQL Deployment with a ReadWriteOnce PVC. SQLite remains the zero-friction local default and is not intended for multi-replica deployments. Use a managed or highly available PostgreSQL service in production.
 - The worker polls the database. A production design would use a durable queue such as Celery/RQ/Arq plus Redis.
 - Argo CD and cloud Terraform are templates/declarations, not part of the one-command local stack.
 - Authentication is local JWT, not OIDC/SSO.

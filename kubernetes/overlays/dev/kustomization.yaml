@@ -8,3 +8,5 @@ replicas:
 images:
   - name: devplane-api
     newTag: local
+patches:
+  - path: demo-mode.yaml
