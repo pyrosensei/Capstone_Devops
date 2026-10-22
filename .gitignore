@@ -15,6 +15,7 @@ htmlcov/
 .ruff_cache/
 
 # Local data
+monitoring/secrets/
 *.db
 *.sqlite3
 data/

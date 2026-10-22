@@ -151,7 +151,10 @@ def test_metrics_export_contains_platform_series(
 ):
     client.get("/api/v1/services", headers=auth_headers)
     client.get("/api/v1/admin/metrics", headers=auth_headers)
-    metrics = client.get("/metrics")
+    metrics = client.get(
+        "/metrics", headers={"Authorization": "Bearer test-metrics-token-value"}
+    )
+    assert metrics.status_code == 200
     text = metrics.text
     for series in (
         "devplane_http_requests_total",

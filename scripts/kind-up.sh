@@ -12,13 +12,13 @@ if ! kind get clusters | grep -qx "$CLUSTER"; then
 fi
 
 echo "Installing ingress-nginx..."
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.15.1/deploy/static/provider/kind/deploy.yaml
 kubectl -n ingress-nginx wait --for=condition=Available deployment/ingress-nginx-controller --timeout=240s
 kubectl -n ingress-nginx wait --for=condition=complete job/ingress-nginx-admission-create --timeout=120s
 kubectl -n ingress-nginx wait --for=condition=Ready pod -l app.kubernetes.io/component=controller --timeout=180s
 
 echo "Installing metrics-server..."
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml
 kubectl -n kube-system patch deployment metrics-server --type=json \
   -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]' || true
 kubectl -n kube-system rollout status deployment/metrics-server --timeout=180s
@@ -45,6 +45,10 @@ POSTGRES_PASSWORD=$(get_secret_value POSTGRES_PASSWORD)
 if [ -z "$POSTGRES_PASSWORD" ]; then
   POSTGRES_PASSWORD=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
 fi
+METRICS_TOKEN=$(get_secret_value METRICS_TOKEN)
+if [ -z "$METRICS_TOKEN" ]; then
+  METRICS_TOKEN=$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
+fi
 BOOTSTRAP_ADMIN_PASSWORD=$(get_secret_value BOOTSTRAP_ADMIN_PASSWORD)
 BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD:-admin123}
 BOOTSTRAP_DEV_PASSWORD=$(get_secret_value BOOTSTRAP_DEV_PASSWORD)
@@ -57,6 +61,7 @@ kubectl -n devplane create secret generic devplane-secrets \
   --from-literal=DATABASE_URL="$DATABASE_URL" \
   --from-literal=BOOTSTRAP_ADMIN_PASSWORD="$BOOTSTRAP_ADMIN_PASSWORD" \
   --from-literal=BOOTSTRAP_DEV_PASSWORD="$BOOTSTRAP_DEV_PASSWORD" \
+  --from-literal=METRICS_TOKEN="$METRICS_TOKEN" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 applied=false

@@ -33,6 +33,10 @@ Use <http://127.0.0.1:8000> for local/Compose or <http://127.0.0.1:8001> for the
 - Admin: `admin@devplane.local` / `admin123`
 - Developer: `dev@devplane.local` / `dev123`
 
+These are demo-only credentials. They are accepted only while `DEMO_MODE=true`
+(the local demo, the dev overlay and the Helm dev values); outside demo mode
+the password guard rejects them and requires the generated bootstrap passwords.
+
 Show the seeded roles and the UI/API split.
 
 ## 2. Create a service

@@ -3,18 +3,41 @@ kind: Application
 metadata:
   name: devplane
   namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: https://github.com/YOUR_ORG/Capstone_Devops.git
-    targetRevision: main
+    # Public repository: Argo CD clones it anonymously, no credentials required.
+    repoURL: https://github.com/pyrosensei/Capstone_Devops.git
+    # The Kubernetes manifests live on the working branch. Switch to "main"
+    # once this branch is merged.
+    targetRevision: fix/auth-hardening
     path: kubernetes/overlays/dev
   destination:
     server: https://kubernetes.default.svc
     namespace: devplane
+  # The HPA owns the API replica count; Argo CD must not fight it.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      namespace: devplane
+      name: devplane-api
+      jqPathExpressions:
+        - .spec.replicas
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+      # Do not apply the ignored .spec.replicas field: the HPA owns it.
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

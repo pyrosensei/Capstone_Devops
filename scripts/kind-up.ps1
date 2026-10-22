@@ -27,7 +27,7 @@ if ($existing -notcontains $cluster) {
 }
 
 Write-Host "Installing ingress-nginx..."
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.15.1/deploy/static/provider/kind/deploy.yaml
 Assert-ExitCode "install ingress-nginx"
 kubectl -n ingress-nginx wait --for=condition=Available deployment/ingress-nginx-controller --timeout=240s
 Assert-ExitCode "wait for ingress-nginx"
@@ -37,7 +37,7 @@ kubectl -n ingress-nginx wait --for=condition=Ready pod -l app.kubernetes.io/com
 Assert-ExitCode "wait for ingress admission webhook"
 
 Write-Host "Installing metrics-server (required for HPA)..."
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml
 Assert-ExitCode "install metrics-server"
 $patched = kubectl get deployment metrics-server -n kube-system -o jsonpath="{.spec.template.spec.containers[0].args}" | Select-String -SimpleMatch "--kubelet-insecure-tls"
 if (-not $patched) {
@@ -86,6 +86,11 @@ if (-not $postgresPassword) {
     $pgBytes = New-RandomBytes 24
     $postgresPassword = -join ($pgBytes | ForEach-Object { $_.ToString("x2") })
 }
+$metricsToken = Get-ExistingSecretValue "METRICS_TOKEN"
+if (-not $metricsToken) {
+    $metricsBytes = New-RandomBytes 24
+    $metricsToken = -join ($metricsBytes | ForEach-Object { $_.ToString("x2") })
+}
 $adminPassword = Get-ExistingSecretValue "BOOTSTRAP_ADMIN_PASSWORD"
 if (-not $adminPassword) { $adminPassword = "admin123" }
 $devPassword = Get-ExistingSecretValue "BOOTSTRAP_DEV_PASSWORD"
@@ -98,6 +103,7 @@ kubectl -n devplane create secret generic devplane-secrets `
     --from-literal=DATABASE_URL="$databaseUrl" `
     --from-literal=BOOTSTRAP_ADMIN_PASSWORD="$adminPassword" `
     --from-literal=BOOTSTRAP_DEV_PASSWORD="$devPassword" `
+    --from-literal=METRICS_TOKEN="$metricsToken" `
     --dry-run=client -o yaml | kubectl apply -f -
 Assert-ExitCode "generate application secret"
 

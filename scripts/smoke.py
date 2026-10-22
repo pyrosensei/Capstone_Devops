@@ -8,11 +8,30 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 import uuid
+from pathlib import Path
 
 import httpx
+
+
+def metrics_token() -> str:
+    """Bearer token for the protected /metrics endpoint.
+
+    Read from the environment first, then from the local .env file that
+    scripts/setup-secrets.ps1 (or .sh) maintains.
+    """
+    token = os.environ.get("METRICS_TOKEN", "").strip()
+    if token:
+        return token
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            if line.startswith("METRICS_TOKEN="):
+                return line.split("=", 1)[1].strip()
+    return ""
 
 
 def wait_for(fn, predicate, attempts: int = 20, delay: float = 0.5):
@@ -113,10 +132,14 @@ def main() -> int:
         admin.raise_for_status()
         print(f"admin metrics: {admin.json()}")
 
-        metrics = client.get("/metrics")
-        metrics.raise_for_status()
-        assert "devplane_http_requests_total" in metrics.text
-        print("metrics scrape: OK")
+        token = metrics_token()
+        if not token:
+            print("metrics scrape: skipped (no METRICS_TOKEN configured)")
+        else:
+            metrics = client.get("/metrics", headers={"Authorization": f"Bearer {token}"})
+            metrics.raise_for_status()
+            assert "devplane_http_requests_total" in metrics.text
+            print("metrics scrape: OK")
         print("\nSmoke test passed.")
     return 0
 

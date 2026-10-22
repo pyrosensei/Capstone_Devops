@@ -20,6 +20,10 @@ variable "bootstrap_dev_password" {
   type      = string
   sensitive = true
 }
+variable "metrics_token" {
+  type      = string
+  sensitive = true
+}
 variable "repo_root" {
   type    = string
   default = ".."
