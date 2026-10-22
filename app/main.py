@@ -1,6 +1,7 @@
 import time
 import uuid
 from contextlib import asynccontextmanager
+from hmac import compare_digest
 from pathlib import Path
 
 import structlog
@@ -164,6 +165,25 @@ def readiness():
 
 
 @app.get("/metrics", tags=["platform"])
-def metrics():
+def metrics(request: Request):
+    """Prometheus scrape endpoint.
+
+    The endpoint is fail-closed: it is disabled until a token is configured
+    and every request must present that token as a bearer credential.
+    """
+    token = settings.resolved_metrics_token
+    if not token:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "metrics endpoint disabled; set METRICS_TOKEN"},
+        )
+    header = request.headers.get("authorization", "")
+    provided = header[len("bearer ") :].strip() if header.lower().startswith("bearer ") else ""
+    if not provided or not compare_digest(provided, token):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "invalid or missing metrics token"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     payload, content_type = metrics_response()
     return Response(content=payload, media_type=content_type)

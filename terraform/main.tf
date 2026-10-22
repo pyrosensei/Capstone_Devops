@@ -35,9 +35,15 @@ resource "random_password" "postgres_password" {
   special = false
 }
 
+resource "random_password" "metrics_token" {
+  length  = 32
+  special = false
+}
+
 locals {
   secret_key        = var.secret_key != "" ? var.secret_key : random_password.secret_key.result
   postgres_password = random_password.postgres_password.result
+  metrics_token     = random_password.metrics_token.result
   database_url      = "postgresql+psycopg2://devplane:${local.postgres_password}@devplane-postgres:5432/devplane"
 }
 
@@ -50,6 +56,7 @@ module "app_config" {
   database_url             = local.database_url
   bootstrap_admin_password = var.bootstrap_admin_password
   bootstrap_dev_password   = var.bootstrap_dev_password
+  metrics_token            = local.metrics_token
   repo_root                = var.repo_root
   apply_manifests          = var.apply_manifests
 

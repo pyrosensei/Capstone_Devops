@@ -9,10 +9,21 @@ def test_health(client: TestClient):
     assert body["app"] == "DevPlane"
 
 
-def test_metrics_endpoint(client: TestClient):
-    res = client.get("/metrics")
+def test_metrics_endpoint_requires_token(client: TestClient):
+    anonymous = client.get("/metrics")
+    assert anonymous.status_code == 401
+    assert anonymous.headers.get("www-authenticate") == "Bearer"
+
+    wrong = client.get("/metrics", headers={"Authorization": "Bearer not-the-token"})
+    assert wrong.status_code == 401
+
+
+def test_metrics_endpoint_returns_payload_with_token(client: TestClient):
+    res = client.get(
+        "/metrics", headers={"Authorization": "Bearer test-metrics-token-value"}
+    )
     assert res.status_code == 200
-    assert "devplane_http_requests_total" in res.text or res.text.startswith("#") or "python" in res.text.lower()
+    assert "devplane_http_requests_total" in res.text
 
 
 def test_ui_index(client: TestClient):

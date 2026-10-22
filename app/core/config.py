@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -44,6 +45,9 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:8000,http://127.0.0.1:8000"
+
+    metrics_token: str = ""
+    metrics_token_file: str = ""
 
     @model_validator(mode="after")
     def validate_security_settings(self) -> "Settings":
@@ -101,6 +105,25 @@ class Settings(BaseSettings):
     @property
     def is_sqlite(self) -> bool:
         return self.database_url.startswith("sqlite")
+
+    @property
+    def resolved_metrics_token(self) -> str:
+        """Bearer token required by the Prometheus scrape endpoint.
+
+        The value can come from ``METRICS_TOKEN`` or from a file pointed at by
+        ``METRICS_TOKEN_FILE`` (used by the Compose stack, where the token is
+        generated into a shared volume).
+        """
+        if self.metrics_token.strip():
+            return self.metrics_token.strip()
+        if self.metrics_token_file.strip():
+            try:
+                return Path(self.metrics_token_file.strip()).read_text(
+                    encoding="utf-8"
+                ).strip()
+            except OSError:
+                return ""
+        return ""
 
 
 @lru_cache

@@ -118,7 +118,7 @@ conda run -n capstone_devops pytest --cov=app --cov-report=term-missing
 conda run -n capstone_devops ruff check app tests worker
 ```
 
-Current baseline: 37 tests passing, 95% statement coverage. The suite covers authentication and roles, security configuration, catalog, environments and TTL, deployments and rollback, flags, secret references, audit immutability, metrics, health, ops stubs, environment ownership checks, and validation errors.
+Current baseline: 40 tests passing, 93% statement coverage (`pytest --cov=app`). The suite covers authentication and roles, security configuration, catalog, environments and TTL, deployments and rollback, flags, secret references, audit immutability, metrics (including the protected scrape endpoint), health, ops stubs, environment ownership checks, and validation errors.
 
 ## Docker Compose
 
@@ -133,6 +133,8 @@ docker compose logs -f api
 Open <http://127.0.0.1:8000>. The API container runs Alembic before starting because `RUN_MIGRATIONS=1`.
 
 Compose requires `SECRET_KEY` to be set; if it is missing or empty, `docker compose` stops with a configuration error. A placeholder value passes Compose but the API refuses to start because `APP_ENV=docker`.
+
+Run `scripts/setup-secrets.ps1` (or `./scripts/setup-secrets.sh`) once before the first `docker compose up`. It generates `METRICS_TOKEN`, stores it in `.env` and writes the same value to `monitoring/secrets/metrics_token` for Prometheus. The `/metrics` scrape endpoint is fail-closed: without a token it answers `503`, and with a token it requires `Authorization: Bearer <token>`.
 
 ### PostgreSQL
 
@@ -178,7 +180,7 @@ Linux/macOS:
 ./scripts/kind-up.sh
 ```
 
-The script creates the `devplane-kind` cluster, installs ingress-nginx and metrics-server, builds and loads `devplane-api:local`, then creates the `devplane` namespace and the `devplane-secrets` Secret **before** applying `kubernetes/overlays/dev`. The Secret contains a generated `SECRET_KEY`, a generated PostgreSQL password, a matching `DATABASE_URL`, and the bootstrap passwords. The API and worker run Alembic automatically and use the in-cluster PostgreSQL instance. The repository does not ship a usable Secret manifest; `kubernetes/base/secret.example.yaml` documents the required keys for manual installs.
+The script creates the `devplane-kind` cluster, installs **pinned** versions of ingress-nginx (`controller-v1.15.1`) and metrics-server (`v0.9.0`), builds and loads `devplane-api:local`, then creates the `devplane` namespace and the `devplane-secrets` Secret **before** applying `kubernetes/overlays/dev`. The Secret contains a generated `SECRET_KEY`, a generated PostgreSQL password, a matching `DATABASE_URL`, a generated `METRICS_TOKEN` and the bootstrap passwords. The API and worker run Alembic automatically and use the in-cluster PostgreSQL instance. The repository does not ship a usable Secret manifest; `kubernetes/base/secret.example.yaml` documents the required keys for manual installs.
 
 ### Access
 
@@ -237,19 +239,21 @@ $secret = python -c "import secrets; print(secrets.token_urlsafe(48))"
 $pg = python -c "import secrets; print(secrets.token_urlsafe(24))"
 $admin = python -c "import secrets; print(secrets.token_urlsafe(18))"
 $dev = python -c "import secrets; print(secrets.token_urlsafe(18))"
-helm lint helm/devplane --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev
-helm template devplane helm/devplane --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev
-helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev
+$metrics = python -c "import secrets; print(secrets.token_urlsafe(32))"
+helm lint helm/devplane --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev --set-string secret.METRICS_TOKEN=$metrics
+helm template devplane helm/devplane --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev --set-string secret.METRICS_TOKEN=$metrics
+helm upgrade --install devplane helm/devplane --namespace devplane --create-namespace --set-string secret.SECRET_KEY=$secret --set-string secret.POSTGRES_PASSWORD=$pg --set-string secret.BOOTSTRAP_ADMIN_PASSWORD=$admin --set-string secret.BOOTSTRAP_DEV_PASSWORD=$dev --set-string secret.METRICS_TOKEN=$metrics
 ```
 
-The chart includes API and worker deployments, a PostgreSQL Deployment and PVC, Redis, Services, Ingress, HPA, RBAC, ConfigMap, Secret, and NOTES. All four secret values (`SECRET_KEY`, `POSTGRES_PASSWORD`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_DEV_PASSWORD`) are required and have no usable defaults. Override `image.repository`, `image.tag`, `ingress.host`, and resources in a values file for a real environment; use `externalDatabase.url` with `postgresql.enabled=false` to use a managed database.
+The chart includes API and worker deployments, a PostgreSQL Deployment and PVC, Redis, Services, Ingress, HPA, RBAC, ConfigMap, Secret, and NOTES. All five secret values (`SECRET_KEY`, `POSTGRES_PASSWORD`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_DEV_PASSWORD`, `METRICS_TOKEN`) are required and have no usable defaults. Override `image.repository`, `image.tag`, `ingress.host`, and resources in a values file for a real environment; use `externalDatabase.url` with `postgresql.enabled=false` to use a managed database.
 
 ## CI/CD and GitOps
 
 - `Jenkinsfile` runs checkout, Python environment setup, lint, tests with coverage/JUnit, optional SonarQube, Docker build with cache, a blocking Trivy scan (`TRIVY_EXIT_CODE=1` by default), optional registry push, and optional Kubernetes deploy.
 - Jenkins parameters: `IMAGE_REGISTRY`, `DEPLOY_TO_K8S`, `K8S_OVERLAY`.
-- `gitops/argocd/application.yaml` points Argo CD at `kubernetes/overlays/dev` on `main`.
-- Argo CD is declared in Git but is not installed by the project scripts; install it separately if you want to demonstrate sync.
+- `gitops/argocd/application.yaml` points Argo CD at this repository (`https://github.com/pyrosensei/Capstone_Devops.git`, public, so Argo CD clones it anonymously) and at `kubernetes/overlays/dev`.
+- Argo CD is installed by `scripts/argocd-up.ps1` / `scripts/argocd-up.sh` (pinned to Argo CD `v3.5.6`) and the Application is applied from `gitops/argocd/application.yaml`. The sync was verified live: the Application reports `Synced` / `Healthy` and Argo CD owns the API, worker, PostgreSQL, Redis, HPA, PDB, Ingress and RBAC objects in the `devplane` namespace. Evidence: [docs/evidence/argocd-sync.md](docs/evidence/argocd-sync.md) and `docs/screenshots/argocd-applications.png`.
+- The `devplane-secrets` Secret stays outside Argo CD: it is created by `scripts/kind-up.*` (or Terraform/Ansible) and is never pruned by a sync.
 
 Setup notes: [docs/jenkins-setup.md](docs/jenkins-setup.md), [docs/branch-strategy.md](docs/branch-strategy.md).
 
@@ -321,7 +325,7 @@ Public registration always creates a `developer`. The request schema rejects a `
 - The API's secret-reference feature stores only provider and path metadata.
 - RBAC limits the in-cluster Kubernetes client to pods, logs, and deployments.
 - Optional NetworkPolicy is provided in `kubernetes/security/networkpolicy.yaml`.
-- JWT signing and bootstrap credentials must be changed for any shared demo.
+- JWT signing and bootstrap credentials must be changed for any shared demo. The password guard is enforced **outside demo mode**: `DEMO_MODE=true` (used by the local demo, the dev overlay and the Helm dev values) explicitly allows the well-known `admin123` / `dev123` credentials, while every other environment refuses them.
 - Blocking image scanning with Trivy in Jenkins (HIGH/CRITICAL) and optional SonarQube.
 
 Details: [docs/security.md](docs/security.md).
@@ -372,7 +376,7 @@ docs/                Phase documentation, deployment/security notes, screenshots
 
 Validated on Windows with Docker Desktop and kind:
 
-- `pytest`: 37 passed; 95% statement coverage.
+- `pytest`: 40 passed; 93% statement coverage (`pytest --cov=app`).
 - `ruff check app tests worker`: passed.
 - `docker build`: multi-stage image built successfully.
 - Docker Compose API + worker + Redis: healthy; smoke test passed.
@@ -386,8 +390,11 @@ Validated on Windows with Docker Desktop and kind:
 - `helm lint` and `helm template`: passed.
 - Terraform 1.16.6: `fmt -check`, `validate`, and `plan` passed.
 - Ansible core 2.21: all three playbooks pass `--syntax-check` (run from WSL).
+- Argo CD v3.5.6 installed in the kind cluster: the `devplane` Application is `Synced` / `Healthy` against this repository.
+- Protected scrape endpoint: Prometheus targets report `up` while `/metrics` returns `401` without the bearer token.
+- Screenshots of the UI, Grafana dashboard, Prometheus targets and the Argo CD Application are in `docs/screenshots/` (see `docs/screenshots/README.md`).
 
-Jenkins, Argo CD, SonarQube, Trivy, and cloud integrations are defined in the repository but require their own external servers/accounts. They were not executed as live services during local validation.
+Jenkins, SonarQube, Trivy, and the cloud integrations still need their own servers or accounts. A local Jenkins controller was set up and the pipeline job configured, but a full green pipeline run and the SonarQube scan are still pending (see `docs/evidence/jenkins-local.md`).
 
 ## Limitations
 
@@ -395,7 +402,7 @@ Jenkins, Argo CD, SonarQube, Trivy, and cloud integrations are defined in the re
 - Terraform and Jenkins ops tools are read-only summaries. Jenkins requires credentials and Terraform requires a generated `tfplan.json` for live values.
 - The Kubernetes demo uses a single PostgreSQL Deployment with a ReadWriteOnce PVC. SQLite remains the zero-friction local default and is not intended for multi-replica deployments. Use a managed or highly available PostgreSQL service in production.
 - The worker polls the database. A production design would use a durable queue such as Celery/RQ/Arq plus Redis.
-- Argo CD and cloud Terraform are templates/declarations, not part of the one-command local stack.
+- Argo CD is installed by a separate script (`scripts/argocd-up.*`); the cloud Terraform files are templates, not part of the one-command local stack.
 - Authentication is local JWT, not OIDC/SSO.
 
 ## Further documentation
@@ -404,6 +411,8 @@ Jenkins, Argo CD, SonarQube, Trivy, and cloud integrations are defined in the re
 - [docs/kubernetes.md](docs/kubernetes.md) - cluster, probes, blue-green/canary, troubleshooting
 - [docs/deployment-strategy.md](docs/deployment-strategy.md) - delivery strategies
 - [docs/jenkins-setup.md](docs/jenkins-setup.md) - CI setup and parameters
+- [docs/evidence/](docs/evidence/) - captured command output backing the validation claims
+- [docs/screenshots/README.md](docs/screenshots/README.md) - captured screenshots and how to re-create them
 - [docs/observability.md](docs/observability.md) - metrics, dashboards, logs, alerts
 - [docs/terraform-ansible.md](docs/terraform-ansible.md) - infrastructure automation
 - [docs/security.md](docs/security.md) - controls and hardening

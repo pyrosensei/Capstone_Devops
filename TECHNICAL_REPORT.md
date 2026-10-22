@@ -179,9 +179,9 @@ conda run -n capstone_devops python -m pytest --cov=app --cov-report=term-missin
 
 Result:
 
-- 37 tests passed.
-- 95% statement coverage.
-- Covered: auth and roles, inactive-user rejection, self-registration privilege escalation, secret-key/JWT configuration, demo-mode gating, catalog, environment lifecycle and TTL, environments ownership and status authorization, duplicate handling, deployments and rollback, simulated execution reporting, flags, secret references, audit immutability, admin metrics, uptime/readiness, validation, and honest ops stubs.
+- 40 tests passed.
+- 93% statement coverage measured with `pytest --cov=app`.
+- Covered: auth and roles, inactive-user rejection, self-registration privilege escalation, secret-key/JWT configuration, demo-mode gating, catalog, environment lifecycle and TTL, environments ownership and status authorization, duplicate handling, deployments and rollback, simulated execution reporting, flags, secret references, audit immutability, admin metrics, uptime/readiness, the bearer-token-protected `/metrics` endpoint, validation, and honest ops stubs.
 
 Lint:
 
@@ -226,7 +226,9 @@ Result: all checks passed.
 
 ### 7.5 Not executed live
 
-Jenkins, SonarQube, Trivy, Argo CD, and cloud providers are fully declared/configured but require external servers or accounts that were not part of the local runtime validation. Their manifests, configuration, and pipeline definitions are present; cloud Terraform files are templates. This distinction is intentional in the report.
+Jenkins, SonarQube, Trivy, and cloud providers are fully declared/configured but require external servers or accounts that were not part of the local runtime validation. Their manifests, configuration, and pipeline definitions are present; cloud Terraform files are templates. This distinction is intentional in the report.
+
+Argo CD is the exception: it was installed live into the kind cluster (v3.5.6) and the `devplane` Application reconciled `kubernetes/overlays/dev` from this GitHub repository, reporting `Synced` / `Healthy`. The captured output is in `docs/evidence/argocd-sync.md` and the UI capture is `docs/screenshots/argocd-applications.png`.
 
 ## 8. Security analysis
 

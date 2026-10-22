@@ -6,6 +6,7 @@ x-app-env: &app-env
   REDIS_URL: redis://redis:6379/0
   SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set to a unique value; see .env.example}
   DEMO_MODE: ${DEMO_MODE:-false}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
   BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@devplane.local}
   BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin123}
   BOOTSTRAP_DEV_EMAIL: ${BOOTSTRAP_DEV_EMAIL:-dev@devplane.local}
@@ -104,6 +105,7 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - ./monitoring/secrets:/run/metrics-secret:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
