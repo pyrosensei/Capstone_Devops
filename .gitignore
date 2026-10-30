@@ -55,3 +55,6 @@ kubeconfig
 
 # Node (if frontend later)
 node_modules/
+
+# Local agent session transcripts
+session-*.md
