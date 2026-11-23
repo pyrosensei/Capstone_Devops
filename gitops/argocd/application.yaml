@@ -10,9 +10,7 @@ spec:
   source:
     # Public repository: Argo CD clones it anonymously, no credentials required.
     repoURL: https://github.com/pyrosensei/Capstone_Devops.git
-    # The Kubernetes manifests live on the working branch. Switch to "main"
-    # once this branch is merged.
-    targetRevision: fix/auth-hardening
+    targetRevision: main
     path: kubernetes/overlays/dev
   destination:
     server: https://kubernetes.default.svc

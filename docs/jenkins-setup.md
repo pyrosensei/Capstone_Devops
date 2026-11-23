@@ -13,7 +13,7 @@
 7. Trivy image scan; fails the build on HIGH/CRITICAL when Trivy is installed.
 8. Registry push/tag when `IMAGE_REGISTRY` is supplied.
 9. Optional Kubernetes deploy when `DEPLOY_TO_K8S` is enabled.
-10. Notify stub and prune old images.
+10. Run the notification stub and archive coverage and test reports.
 
 Build parameters:
 
@@ -46,7 +46,7 @@ Linux shell:
 
 ```bash
 docker run -d --name jenkins \
-  -p 8080:8080 -p 50000:50000 \
+  -p 127.0.0.1:8082:8080 -p 127.0.0.1:50000:50000 \
   -v jenkins_home:/var/jenkins_home \
   -v /var/run/docker.sock:/var/run/docker.sock \
   jenkins/jenkins:lts
@@ -55,7 +55,7 @@ docker run -d --name jenkins \
 PowerShell:
 
 ```powershell
-docker run -d --name jenkins -p 8080:8080 -p 50000:50000 `
+docker run -d --name jenkins -p 127.0.0.1:8082:8080 -p 127.0.0.1:50000:50000 `
   -v jenkins_home:/var/jenkins_home `
   -v /var/run/docker.sock:/var/run/docker.sock `
   jenkins/jenkins:lts
@@ -69,7 +69,7 @@ Get the initial admin password:
 docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
-Open <http://127.0.0.1:8080> and complete the setup wizard.
+Open <http://127.0.0.1:8082> and complete the setup wizard with admin authentication. Use a separate controller home for a fresh install. An existing home with the setup wizard disabled retains its security configuration across restarts.
 
 ## Required plugins
 
@@ -85,11 +85,10 @@ Open <http://127.0.0.1:8080> and complete the setup wizard.
 
 ## Job setup
 
-1. Create a Pipeline job.
-2. Point SCM at this repository.
-3. Set Script Path to `Jenkinsfile`.
-4. For a classroom network, enable SCM polling (`H/5 * * * *`) because GitHub cannot reach a local Jenkins.
-5. For webhooks, expose Jenkins and use the GitHub webhook URL `http://<host>:8080/github-webhook/`.
+1. Create a Pipeline job named `devplane-ci`, or open **Configure** on the existing job.
+2. Under **Pipeline**, select **Pipeline script from SCM**, then select **Git** and enter this repository's URL.
+3. Set the branch to `*/main` and the script path to `Jenkinsfile`. Save the configuration and confirm that the Git repository and script path persist before building.
+4. Use **Build Now** for a manual validation run. Use SCM polling (`H/5 * * * *`) if you need automatic builds on the local controller.
 
 ## Credentials
 

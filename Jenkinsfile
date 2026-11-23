@@ -181,7 +181,6 @@ pipeline {
     }
     always {
       archiveArtifacts artifacts: 'coverage.xml, reports/junit.xml', allowEmptyArchive: true
-      sh 'docker image prune -f --filter "until=24h" || true'
     }
   }
 }

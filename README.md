@@ -1,8 +1,8 @@
 # DevPlane - Self-Hosted Internal Developer Platform
 
-DevPlane is a small but complete Internal Developer Platform (IDP) control plane built for a DevOps capstone. It lets a team register services, provision ephemeral environments, trigger and roll back deployments, manage feature flags and secret references, inspect platform operations, and review an immutable audit trail.
+DevPlane is a self-hosted Internal Developer Platform (IDP) capstone. It lets a team register services, simulate preview environments and releases, manage feature flags and secret references, inspect platform operations, and review an append-only application audit trail.
 
-The application is wrapped in the full delivery lifecycle: Git workflow, Jenkins CI, a non-root Docker image, Kubernetes with kind, Helm, Kustomize, blue-green and canary delivery, Ansible, Terraform, Prometheus/Grafana, Loki/ELK logging, and Argo CD GitOps.
+Run the capstone demo with Python and SQLite, or run the API, worker, and Redis through Docker Compose. A GitHub Actions workflow checks the source and smoke-tests the Compose build on a hosted runner. Jenkins, Kubernetes, Argo CD, Terraform, Ansible, and the observability profiles are optional infrastructure examples.
 
 ## Contents
 
@@ -27,22 +27,14 @@ The application is wrapped in the full delivery lifecycle: Git workflow, Jenkins
 
 ```mermaid
 flowchart LR
-  Dev[Developer] --> Git[GitHub]
-  Git --> Jenkins[Jenkins CI]
-  Jenkins --> Image[Docker image]
-  Image --> K8s[Kubernetes / kind]
-  K8s --> Ingress[NGINX Ingress]
-  Ingress --> User[Browser / API client]
-  K8s --> Prom[Prometheus + Grafana]
-  K8s --> Logs[Loki / ELK]
-  Git --> Argo[Argo CD]
-  Argo --> K8s
-  API[FastAPI API] --> DB[(SQLite or PostgreSQL)]
-  Worker[Worker container] --> DB
+  Git[GitHub] --> CI[GitHub Actions]
+  CI --> Compose[Docker Compose smoke test]
+  Compose --> API[FastAPI]
+  Compose --> Worker[Worker]
+  User[Browser or API client] --> API
+  API --> DB[(SQLite or PostgreSQL)]
+  Worker --> DB
   API --> Redis[(Redis)]
-  Worker --> Redis
-  K8s --- API
-  K8s --- Worker
 ```
 
 Application layers:
@@ -71,13 +63,26 @@ HTTP routers -> domain services -> repositories -> SQLAlchemy models
 
 ## Quick start
 
-### Prerequisites
+### Lightweight capstone demo
 
-- Miniconda (or a Python 3.11 virtual environment)
-- Git
-- Optional: Docker Desktop, kind, kubectl, Helm for container and cluster demos
+From the repository root, use an active Python 3.11 environment. Install the dependencies once, then start DevPlane:
 
-### Local API and UI
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m scripts.local_demo
+```
+
+Open <http://127.0.0.1:8000> and sign in with `admin@devplane.local` / `admin123`. Swagger UI is at <http://127.0.0.1:8000/docs>. Use `--port 8001` if port 8000 is occupied.
+
+Each launch creates a fresh SQLite database and listens on loopback. Stop it with Ctrl+C to discard the demo data. FastAPI background tasks advance simulated provisioning, releases, and rollbacks. The admin API can run TTL cleanup on demand. Redis and external operations integrations are optional in this mode.
+
+In a second terminal with the same Python environment, verify the demo against the running server. Pass `--base-url` if you changed the port.
+
+```powershell
+python scripts/smoke.py --skip-metrics
+```
+
+### Persistent local development
 
 ```powershell
 conda create -n capstone_devops python=3.11 -y
@@ -86,7 +91,7 @@ python -m pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 # Generate a unique JWT signing key and replace SECRET_KEY in .env
 python -c "import secrets; print(secrets.token_urlsafe(48))"
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Open <http://127.0.0.1:8000>. API documentation is at <http://127.0.0.1:8000/docs>.
@@ -135,6 +140,8 @@ Open <http://127.0.0.1:8000>. The API container runs Alembic before starting bec
 Compose requires `SECRET_KEY` to be set; if it is missing or empty, `docker compose` stops with a configuration error. A placeholder value passes Compose but the API refuses to start because `APP_ENV=docker`.
 
 Run `scripts/setup-secrets.ps1` (or `./scripts/setup-secrets.sh`) once before the first `docker compose up`. It generates `METRICS_TOKEN`, stores it in `.env` and writes the same value to `monitoring/secrets/metrics_token` for Prometheus. The `/metrics` scrape endpoint is fail-closed: without a token it answers `503`, and with a token it requires `Authorization: Bearer <token>`.
+
+After changing the source, use `docker compose up --build -d api worker redis` to rebuild the application image. Then run `python scripts/smoke.py` from the project environment. With `METRICS_TOKEN` configured, the smoke test requires HTTP 401 without a bearer token and HTTP 200 with it.
 
 ### PostgreSQL
 
@@ -249,7 +256,13 @@ The chart includes API and worker deployments, a PostgreSQL Deployment and PVC, 
 
 ## CI/CD and GitOps
 
-- `Jenkinsfile` runs checkout, Python environment setup, lint, tests with coverage/JUnit, optional SonarQube, Docker build with cache, a blocking Trivy scan (`TRIVY_EXIT_CODE=1` by default), optional registry push, and optional Kubernetes deploy.
+### GitHub Actions
+
+[DevPlane CI](.github/workflows/ci.yml) runs on pull requests and pushes to `main`, with a manual trigger in the Actions tab. It checks Python and browser JavaScript, runs pytest with coverage, builds the Compose stack on a GitHub-hosted runner, and checks Redis health, simulated rollback, audit logging, and metrics authentication. The runner generates disposable credentials for each job.
+
+### Optional Jenkins and Argo CD
+
+- `Jenkinsfile` runs checkout, Python environment setup, lint, tests with coverage/JUnit, optional SonarQube, Docker build with cache, a Trivy scan when installed (`TRIVY_EXIT_CODE=1` by default), optional registry push, and optional Kubernetes deploy.
 - Jenkins parameters: `IMAGE_REGISTRY`, `DEPLOY_TO_K8S`, `K8S_OVERLAY`.
 - `gitops/argocd/application.yaml` points Argo CD at this repository (`https://github.com/pyrosensei/Capstone_Devops.git`, public, so Argo CD clones it anonymously) and at `kubernetes/overlays/dev`.
 - Argo CD is installed by `scripts/argocd-up.ps1` / `scripts/argocd-up.sh` (pinned to Argo CD `v3.5.6`) and the Application is applied from `gitops/argocd/application.yaml`. The sync was verified live: the Application reports `Synced` / `Healthy` and Argo CD owns the API, worker, PostgreSQL, Redis, HPA, PDB, Ingress and RBAC objects in the `devplane` namespace. Evidence: [docs/evidence/argocd-sync.md](docs/evidence/argocd-sync.md) and `docs/screenshots/argocd-applications.png`.
@@ -343,11 +356,14 @@ Details: [docs/security.md](docs/security.md).
 9. Run the automated smoke test:
 
 ```powershell
-# Local or Compose
-conda run -n capstone_devops python scripts/smoke.py
+# Lightweight local demo
+python scripts/smoke.py --skip-metrics
 
-# Kubernetes through a port-forward
-conda run -n capstone_devops python scripts/smoke.py --base-url http://127.0.0.1:8000
+# Compose
+python scripts/smoke.py
+
+# Kubernetes through a port-forward on 8001
+python scripts/smoke.py --base-url http://127.0.0.1:8001
 ```
 
 On PowerShell, `scripts/demo.ps1` wraps the smoke test and honours `DEVPLANE_URL`.
@@ -374,10 +390,9 @@ docs/                Phase documentation, deployment/security notes, screenshots
 
 ## Validation status
 
-Validated on Windows with Docker Desktop and kind:
+The lightweight demo was verified on Windows with Python 3.11. In Chrome, an admin registered a service, provisioned a preview, deployed two versions, rolled back, and viewed the audit entry. The live HTTP smoke test also passed with a configured metrics token. The local suite passed all 40 tests with 93% application coverage. Ruff passed for the application, worker, tests, and both demo scripts.
 
-- `pytest`: 40 passed; 93% statement coverage (`pytest --cov=app`).
-- `ruff check app tests worker`: passed.
+Prior infrastructure validation on Windows with Docker Desktop and kind:
 - `docker build`: multi-stage image built successfully.
 - Docker Compose API + worker + Redis: healthy; smoke test passed.
 - kind cluster: API 2/2, worker 1/1, Postgres 1/1, Redis 1/1, Postgres PVC bound, HPA active.
@@ -390,11 +405,17 @@ Validated on Windows with Docker Desktop and kind:
 - `helm lint` and `helm template`: passed.
 - Terraform 1.16.6: `fmt -check`, `validate`, and `plan` passed.
 - Ansible core 2.21: all three playbooks pass `--syntax-check` (run from WSL).
-- Argo CD v3.5.6 installed in the kind cluster: the `devplane` Application is `Synced` / `Healthy` against this repository.
+- Argo CD v3.5.6 reported `Synced` / `Healthy` at the revision documented in [the sync evidence](docs/evidence/argocd-sync.md). The checked-in Application now tracks `main`. A fresh sync and the revised three-replica ceiling still need a live cluster check.
 - Protected scrape endpoint: Prometheus targets report `up` while `/metrics` returns `401` without the bearer token.
 - Screenshots of the UI, Grafana dashboard, Prometheus targets and the Argo CD Application are in `docs/screenshots/` (see `docs/screenshots/README.md`).
 
-Jenkins, SonarQube, Trivy, and the cloud integrations still need their own servers or accounts. A local Jenkins controller was set up and the pipeline job configured, but a full green pipeline run and the SonarQube scan are still pending (see `docs/evidence/jenkins-local.md`).
+The GitHub Actions workflow is ready for its first hosted run. The component checks have been run locally against the rebuilt Compose stack.
+
+On 23 November 2026, Docker Desktop rebuilt the API and worker from the current workspace. The API and Redis reported healthy, the worker was running, and the API served JavaScript identical to the workspace copy. The live smoke test passed through simulated deployment, rollback, and audit. The rebuilt API returned HTTP 401 for an anonymous metrics scrape and HTTP 200 with the configured bearer token.
+
+The existing kind deployment also passed the smoke test through ingress. Its API reported healthy PostgreSQL and Redis connections, the ops endpoint returned live Kubernetes pod data, and an anonymous metrics request returned HTTP 401. This deployment still had six API pods. The updated autoscaling configuration and Argo CD sync against `main` still need a fresh deployment check.
+
+On 23 November 2026, the existing Jenkins controller started, but the `devplane-ci` job had no saved Pipeline definition or build history. The controller was stopped after the check. A successful Jenkins pipeline run and live SonarQube and Trivy results are still pending. The cloud integrations are templates. See [the Jenkins evidence](docs/evidence/jenkins-local.md).
 
 ## Limitations
 

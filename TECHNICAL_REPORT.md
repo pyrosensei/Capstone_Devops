@@ -191,6 +191,8 @@ conda run -n capstone_devops ruff check app tests worker
 
 Result: all checks passed.
 
+The lightweight Windows demo runs with Python 3.11 and disposable SQLite. Its live HTTP smoke test checked readiness, UI assets, environment provisioning, two simulated deployments, completed rollback, feature flags, secret references, ops, and the rollback audit event.
+
 ### 7.2 Docker
 
 - Multi-stage image built successfully.
@@ -207,7 +209,7 @@ Result: all checks passed.
 - API `2/2`, worker `1/1`, Postgres `1/1`, Redis `1/1`.
 - PostgreSQL PVC `devplane-postgres-data` bound.
 - Alembic migrations applied through `scripts/entrypoint.sh`; two API replicas serialized migrations with a PostgreSQL advisory lock.
-- HPA active at roughly `cpu: 5-6%/70%`, min 2, max 6.
+- The earlier validation observed active HPA at roughly `cpu: 5-6%/70%`. The current demo manifests set a two-to-three replica range. The revised range still needs a live cluster check.
 - Ingress reachable on host port 8081 with `Host: devplane.local`, HTTP 200.
 - Latest image loaded into kind with `kind load docker-image`; API and worker rolled out successfully.
 - Cluster smoke test passed; ops registry returned `source: kubernetes`.
@@ -224,11 +226,11 @@ Result: all checks passed.
 - `terraform plan`: generated the expected two local config files without errors.
 - Ansible `--syntax-check` for `site.yml`, `k8s-deploy.yml`, and `install-tools.yml`: passed (run from WSL because Ansible does not support a Windows control node).
 
-### 7.5 Not executed live
+### 7.5 Hosted CI and optional integrations
 
-Jenkins, SonarQube, Trivy, and cloud providers are fully declared/configured but require external servers or accounts that were not part of the local runtime validation. Their manifests, configuration, and pipeline definitions are present; cloud Terraform files are templates. This distinction is intentional in the report.
+The GitHub Actions workflow checks Python and JavaScript, runs pytest with coverage, and builds and smoke-tests the Docker Compose stack on a hosted Linux runner. The first hosted execution is pending. Jenkins, SonarQube, Trivy, and the cloud provider templates are optional. Jenkins started locally, but the existing job had no saved Pipeline definition. SonarQube and Trivy have no live run recorded.
 
-Argo CD is the exception: it was installed live into the kind cluster (v3.5.6) and the `devplane` Application reconciled `kubernetes/overlays/dev` from this GitHub repository, reporting `Synced` / `Healthy`. The captured output is in `docs/evidence/argocd-sync.md` and the UI capture is `docs/screenshots/argocd-applications.png`.
+An earlier kind run installed Argo CD v3.5.6 and recorded the `devplane` Application as `Synced` / `Healthy` at the revision in [the sync evidence](docs/evidence/argocd-sync.md). The current Application tracks `main`. A fresh sync still needs a live cluster check.
 
 ## 8. Security analysis
 

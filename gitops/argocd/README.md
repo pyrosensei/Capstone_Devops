@@ -50,9 +50,8 @@ Do not commit the password or the hash.
 - `repoURL` points at `https://github.com/pyrosensei/Capstone_Devops.git`
   (a public repository, so Argo CD clones it anonymously - no credentials
   required).
-- `targetRevision` is the branch that carries the Kubernetes manifests. It is
-  currently `fix/auth-hardening`; switch it to `main` once that branch is
-  merged, and Argo CD will follow `main` from then on.
+- `targetRevision: main` tells Argo CD to follow the default branch and reconcile
+  the manifests after changes are merged and pushed.
 
 ## 4. The Secret is not managed by Argo CD
 

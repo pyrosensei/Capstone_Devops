@@ -109,7 +109,11 @@ async function refreshEnvironments(serviceId) {
       : `<p class="muted">No environments for this service.</p>`;
 
     const select = $("env-select");
+    const previousSelection = select.value;
     resetSelect(select, envs.filter((e) => e.status !== "terminated"), (e) => `${e.name} (${e.env_type})`);
+    if ([...select.options].some((option) => option.value === previousSelection)) {
+      select.value = previousSelection;
+    }
     state.envId = Number(select.value) || null;
     if (state.envId) await refreshDeployments(state.envId);
     else $("deps").innerHTML = `<p class="muted">No deployable environments.</p>`;
@@ -430,6 +434,9 @@ $("ops-form").addEventListener("submit", async (e) => {
   }
 });
 
+$("delivery-refresh").addEventListener("click", () => {
+  if (state.serviceId) refreshEnvironments(state.serviceId);
+});
 $("audit-refresh").addEventListener("click", refreshAudit);
 
 (async () => {

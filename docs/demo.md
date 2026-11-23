@@ -1,14 +1,14 @@
 # Demo and viva script
 
-This walkthrough takes about 10-15 minutes. Choose one runtime: local API, Docker Compose, or kind.
+This walkthrough takes about 10–15 minutes. Use the Python and SQLite demo for a laptop presentation. The Compose and kind commands are for demonstrating the infrastructure separately.
 
 ## 0. Prepare
 
-Local:
+From the repository root, activate the Python 3.11 environment and start the local demo:
 
 ```powershell
 conda activate capstone_devops
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m scripts.local_demo
 ```
 
 Compose:
@@ -28,6 +28,12 @@ kubectl -n devplane port-forward svc/devplane-api 8001:80
 
 Use <http://127.0.0.1:8000> for local/Compose or <http://127.0.0.1:8001> for the port-forward.
 
+For the PowerShell examples below, set `$baseUrl` to the running server:
+
+```powershell
+$baseUrl = 'http://127.0.0.1:8000'
+```
+
 ## 1. Log in
 
 - Admin: `admin@devplane.local` / `admin123`
@@ -44,12 +50,12 @@ Show the seeded roles and the UI/API split.
 In the UI or with the API:
 
 ```powershell
-$token = (Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/auth/login `
+$token = (Invoke-RestMethod -Method Post -Uri "$baseUrl/api/v1/auth/login" `
   -Body @{username='admin@devplane.local'; password='admin123'}).access_token
 $headers = @{Authorization = "Bearer $token"}
-$service = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/services `
+$service = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/v1/services" `
   -Headers $headers -ContentType 'application/json' `
-  -Body '{"name":"payments-api","description":"Payments service","repo_url":"https://github.com/example/payments-api","tech_stack":"FastAPI"}'
+  -Body '{"name":"checkout-api","description":"Checkout service","repo_url":"https://github.com/example/checkout-api","tech_stack":"FastAPI"}'
 $service
 ```
 
@@ -58,10 +64,10 @@ Point out repository URL validation, ownership, and the audit event.
 ## 3. Create an ephemeral environment
 
 ```powershell
-$env = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/v1/services/$($service.id)/environments" `
+$preview = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/v1/services/$($service.id)/environments" `
   -Headers $headers -ContentType 'application/json' `
   -Body '{"name":"pr-42","env_type":"ephemeral","ttl_minutes":15}'
-$env
+$preview
 ```
 
 Show `provisioning -> running`, `expires_at`, and the duplicate-name `409` behavior.
@@ -69,26 +75,26 @@ Show `provisioning -> running`, `expires_at`, and the duplicate-name `409` behav
 ## 4. Deploy and roll back
 
 ```powershell
-$dep1 = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/v1/environments/$($env.id)/deployments" `
+$dep1 = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/v1/environments/$($preview.id)/deployments" `
   -Headers $headers -ContentType 'application/json' `
   -Body '{"version":"v1.0.0","strategy":"rolling"}'
-Start-Sleep -Seconds 3
-$dep2 = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/v1/environments/$($env.id)/deployments" `
+Start-Sleep -Seconds 4
+$dep2 = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/v1/environments/$($preview.id)/deployments" `
   -Headers $headers -ContentType 'application/json' `
   -Body '{"version":"v2.0.0","strategy":"blue-green"}'
-Start-Sleep -Seconds 3
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/v1/deployments/$($dep2.id)/rollback" -Headers $headers
+Start-Sleep -Seconds 4
+Invoke-RestMethod -Method Post -Uri "$baseUrl/api/v1/deployments/$($dep2.id)/rollback" -Headers $headers
 ```
 
-Show the deployment history, status transitions, strategy values, and rollback record.
+Use **Refresh status** in the Delivery tab to show the status transitions and the rollback to `v1.0.0`. The version history and strategy labels represent simulated execution.
 
 ## 5. Feature flag and secret reference
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/v1/services/$($service.id)/flags" `
+Invoke-RestMethod -Method Post -Uri "$baseUrl/api/v1/services/$($service.id)/flags" `
   -Headers $headers -ContentType 'application/json' `
   -Body '{"key":"new-checkout","enabled":true,"description":"Checkout v2"}'
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/v1/services/$($service.id)/secrets" `
+Invoke-RestMethod -Method Post -Uri "$baseUrl/api/v1/services/$($service.id)/secrets" `
   -Headers $headers -ContentType 'application/json' `
   -Body '{"name":"stripe-key","provider":"kubernetes","ref_path":"devplane/stripe-key"}'
 ```
@@ -100,8 +106,8 @@ Emphasize that only the reference path is stored.
 Open the Ops panel or call:
 
 ```powershell
-Invoke-RestMethod "http://127.0.0.1:8000/api/v1/ops/tools" -Headers $headers
-Invoke-RestMethod "http://127.0.0.1:8000/api/v1/ops/pods?namespace=devplane" -Headers $headers
+Invoke-RestMethod "$baseUrl/api/v1/ops/tools" -Headers $headers
+Invoke-RestMethod "$baseUrl/api/v1/ops/pods?namespace=devplane" -Headers $headers
 ```
 
 - Local/Compose without a kubeconfig: `source: stub`.
@@ -112,8 +118,8 @@ Being explicit about the source is part of the design.
 ## 7. Admin metrics and audit
 
 ```powershell
-Invoke-RestMethod "http://127.0.0.1:8000/api/v1/admin/metrics" -Headers $headers
-Invoke-RestMethod "http://127.0.0.1:8000/api/v1/admin/audit?limit=10" -Headers $headers
+Invoke-RestMethod "$baseUrl/api/v1/admin/metrics" -Headers $headers
+Invoke-RestMethod "$baseUrl/api/v1/admin/audit?limit=10" -Headers $headers
 ```
 
 Show environment counts, deployment counts, active users, flags, secret references, and audit entries. Try to update/delete an audit row through the ORM and explain the immutability guard.
@@ -121,27 +127,26 @@ Show environment counts, deployment counts, active users, flags, secret referenc
 ## 8. TTL reaper
 
 ```powershell
-Invoke-RestMethod -Method Post "http://127.0.0.1:8000/api/v1/admin/maintenance/expire-environments" -Headers $headers
+Invoke-RestMethod -Method Post "$baseUrl/api/v1/admin/maintenance/expire-environments" -Headers $headers
 ```
 
-The worker also runs the reaper every few seconds. Expired environments become `terminated`.
+Expired environments become `terminated`. Compose and kind also run the reaper from the worker every few seconds.
 
 ## 9. Metrics and health
 
 ```powershell
-Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/health
-Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/health/ready
-Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/metrics
+Invoke-WebRequest -UseBasicParsing "$baseUrl/health"
+Invoke-WebRequest -UseBasicParsing "$baseUrl/health/ready"
 ```
 
-Point out `X-Request-ID`, structured JSON logs, and `devplane_*` metrics.
+Point out `X-Request-ID` and structured JSON logs. If you configured `METRICS_TOKEN`, use that token as a Bearer credential to show the `devplane_*` metrics at `/metrics`.
 
 ## 10. Automated proof
 
 ```powershell
 conda run -n capstone_devops pytest --cov=app --cov-report=term-missing
 conda run -n capstone_devops ruff check app tests worker
-conda run -n capstone_devops python scripts/smoke.py --base-url http://127.0.0.1:8000
+python scripts/smoke.py --base-url $baseUrl --skip-metrics
 ```
 
 For Kubernetes, use the port-forward URL:

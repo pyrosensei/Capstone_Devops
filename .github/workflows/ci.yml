@@ -1,0 +1,65 @@
+name: DevPlane CI
+
+'on':
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Check Python and browser JavaScript
+        run: |
+          python -m ruff check app tests worker scripts/local_demo.py scripts/smoke.py
+          node --check app/static/app.js
+
+      - name: Run tests and report coverage
+        run: python -m pytest --cov=app --cov-report=term-missing
+
+      - name: Set up disposable Compose credentials
+        id: credentials
+        shell: bash
+        run: |
+          secret_key=$(python -c 'import secrets; print(secrets.token_urlsafe(48))')
+          metrics_token=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
+          printf '::add-mask::%s\n' "$secret_key" "$metrics_token"
+          printf 'SECRET_KEY=%s\nMETRICS_TOKEN=%s\nDEMO_MODE=true\n' \
+            "$secret_key" "$metrics_token" >> "$GITHUB_ENV"
+
+      - name: Build and start the Compose stack
+        run: docker compose up --build --wait --wait-timeout 120 api worker redis
+
+      - name: Smoke test the built application
+        run: python scripts/smoke.py --require-redis
+
+      - name: Show service status and logs on failure
+        if: ${{ failure() && steps.credentials.outcome == 'success' }}
+        run: |
+          docker compose ps --all
+          docker compose logs --tail 100 api worker redis
+
+      - name: Stop Compose services
+        if: ${{ always() && steps.credentials.outcome == 'success' }}
+        run: docker compose down

@@ -89,7 +89,7 @@ kubectl -n devplane get hpa
 kubectl -n devplane scale deploy/devplane-api --replicas=3
 ```
 
-The HPA needs metrics-server. The kind script installs it and adds `--kubelet-insecure-tls`.
+The demo HPA scales the API from two to three replicas to limit resource use on a laptop. The kind script installs metrics-server and adds `--kubelet-insecure-tls`.
 
 **Database:** the demo uses a PostgreSQL Deployment with a ReadWriteOnce PVC. This is sufficient for the single-node kind demo; for production, use a managed PostgreSQL service (`externalDatabase.url` in Helm) or a highly available database.
 
