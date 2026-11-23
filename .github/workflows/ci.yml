@@ -49,10 +49,14 @@ jobs:
             "$secret_key" "$metrics_token" >> "$GITHUB_ENV"
 
       - name: Build and start the Compose stack
-        run: docker compose up --build --wait --wait-timeout 120 api worker redis
+        run: |
+          docker compose up --build --wait --wait-timeout 120 api redis
+          docker compose up -d --no-build worker
 
       - name: Smoke test the built application
-        run: python scripts/smoke.py --require-redis
+        run: |
+          python scripts/smoke.py --require-redis
+          docker compose ps --status running --services worker | grep -Fx worker
 
       - name: Show service status and logs on failure
         if: ${{ failure() && steps.credentials.outcome == 'success' }}
