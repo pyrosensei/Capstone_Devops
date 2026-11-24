@@ -4,7 +4,7 @@
 
 `Jenkinsfile` is a declarative pipeline with these stages:
 
-1. Checkout and short commit SHA.
+1. Checkout and log the complete commit SHA.
 2. Python setup: activate/create `capstone_devops` when Conda exists, otherwise create `.venv`.
 3. Ruff lint.
 4. Pytest with coverage, JUnit XML, and archived artifacts.
@@ -38,27 +38,31 @@ Use a Linux agent with:
 - `kubectl` and `kind` for the optional deploy stage
 - Optional `sonar-scanner`; install `trivy` to enforce the blocking image scan
 
-A Jenkins controller can run the pipeline if the Docker socket is mounted, but a dedicated agent is cleaner and matches the `sh` steps.
+A dedicated agent can use those prerequisites and run the repository pipeline. For isolated local verification, the repository also provides a Jenkins image with Python 3.11, Docker CLI, and the required plugins.
 
 ## Local Jenkins in Docker
 
-Linux shell:
+Build from the repository root. Determine the Docker socket group as seen by a Linux container, then start a fresh controller on loopback.
 
 ```bash
-docker run -d --name jenkins \
-  -p 127.0.0.1:8082:8080 -p 127.0.0.1:50000:50000 \
-  -v jenkins_home:/var/jenkins_home \
+docker build -f jenkins/Dockerfile -t devplane-jenkins:local .
+socket_gid=$(docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  --entrypoint stat devplane-jenkins:local -c '%g' /var/run/docker.sock)
+docker run -d --name devplane-jenkins-ci -p 127.0.0.1:8082:8080 \
+  -v devplane_jenkins_ci_home:/var/jenkins_home \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  jenkins/jenkins:lts
+  --group-add "$socket_gid" devplane-jenkins:local
 ```
 
 PowerShell:
 
 ```powershell
-docker run -d --name jenkins -p 127.0.0.1:8082:8080 -p 127.0.0.1:50000:50000 `
-  -v jenkins_home:/var/jenkins_home `
+docker build -f jenkins/Dockerfile -t devplane-jenkins:local .
+$socketGid = docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro --entrypoint stat devplane-jenkins:local -c '%g' /var/run/docker.sock
+docker run -d --name devplane-jenkins-ci -p 127.0.0.1:8082:8080 `
+  -v devplane_jenkins_ci_home:/var/jenkins_home `
   -v /var/run/docker.sock:/var/run/docker.sock `
-  jenkins/jenkins:lts
+  --group-add $socketGid devplane-jenkins:local
 ```
 
 Mounting the Docker socket gives the Jenkins container control of the host Docker daemon. That is a significant privilege; use only for a local demo.
@@ -66,7 +70,7 @@ Mounting the Docker socket gives the Jenkins container control of the host Docke
 Get the initial admin password:
 
 ```powershell
-docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+docker exec devplane-jenkins-ci cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
 Open <http://127.0.0.1:8082> and complete the setup wizard with admin authentication. Use a separate controller home for a fresh install. An existing home with the setup wizard disabled retains its security configuration across restarts.
@@ -75,8 +79,6 @@ Open <http://127.0.0.1:8082> and complete the setup wizard with admin authentica
 
 - Pipeline
 - Git
-- Docker Pipeline
-- Credentials Binding
 - JUnit
 - Coverage (optional)
 - SonarQube Scanner (optional)
@@ -127,7 +129,7 @@ The gate defaults to `TRIVY_EXIT_CODE=1`, so HIGH/CRITICAL findings fail the bui
 When `DEPLOY_TO_K8S` is true:
 
 1. The pipeline verifies that the `devplane-secrets` Secret already exists (run `scripts/kind-up` or create it manually; the repository does not ship a usable Secret).
-2. If kind and the `devplane-kind` cluster exist, the image is loaded into kind.
+2. With kind installed and `kind-devplane-kind` selected in kubectl, the image is loaded directly. Other contexts require `IMAGE_REGISTRY` so the API and worker can pull the tag pushed by this run.
 3. `kubectl apply -k ${K8S_OVERLAY}` runs, then API and worker images are updated to the built tag.
 4. PostgreSQL, API, and worker rollouts are awaited.
 

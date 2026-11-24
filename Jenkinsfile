@@ -18,13 +18,14 @@ pipeline {
     timeout(time: 45, unit: 'MINUTES')
     buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '10'))
     disableConcurrentBuilds()
+    skipDefaultCheckout()
   }
 
   stages {
     stage('Checkout') {
       steps {
         checkout scm
-        sh 'git rev-parse --short HEAD > .git-short-sha || true'
+        sh 'git rev-parse HEAD'
       }
     }
 
@@ -60,7 +61,7 @@ pipeline {
           else
             . .venv/bin/activate
           fi
-          ruff check app tests worker
+          ruff check app tests worker scripts/local_demo.py scripts/smoke.py
         '''
       }
     }
@@ -156,14 +157,18 @@ pipeline {
             echo "devplane-secrets is missing; run scripts/kind-up first or create the Secret" >&2
             exit 1
           fi
-          if command -v kind >/dev/null 2>&1 && kind get clusters | grep -qx devplane-kind; then
-            kind load docker-image ${IMAGE}:${TAG} --name devplane-kind
+          IMAGE_REF="${IMAGE_REGISTRY:+${IMAGE_REGISTRY}/}${IMAGE}:${TAG}"
+          CONTEXT="$(kubectl config current-context)"
+          if [ "$CONTEXT" = kind-devplane-kind ] && command -v kind >/dev/null 2>&1; then
+            IMAGE_REF="${IMAGE}:${TAG}"
+            kind load docker-image "$IMAGE_REF" --name devplane-kind
+          elif [ -z "$IMAGE_REGISTRY" ]; then
+            echo "Set IMAGE_REGISTRY for deployment outside the local devplane-kind cluster" >&2
+            exit 1
           fi
-          kubectl apply -k ${K8S_OVERLAY}
-          if command -v kind >/dev/null 2>&1 && kind get clusters | grep -qx devplane-kind; then
-            kubectl -n devplane set image deploy/devplane-api api=${IMAGE}:${TAG}
-            kubectl -n devplane set image deploy/devplane-worker worker=${IMAGE}:${TAG}
-          fi
+          kubectl apply -k "$K8S_OVERLAY"
+          kubectl -n devplane set image deploy/devplane-api api="$IMAGE_REF"
+          kubectl -n devplane set image deploy/devplane-worker worker="$IMAGE_REF"
           kubectl -n devplane rollout status deploy/devplane-postgres --timeout=180s
           kubectl -n devplane rollout status deploy/devplane-api --timeout=180s
           kubectl -n devplane rollout status deploy/devplane-worker --timeout=180s
@@ -174,10 +179,10 @@ pipeline {
 
   post {
     success {
-      sh 'python scripts/notify_stub.py || true'
+      sh 'python3 scripts/notify_stub.py || true'
     }
     failure {
-      sh 'python scripts/notify_stub.py || true'
+      sh 'python3 scripts/notify_stub.py || true'
     }
     always {
       archiveArtifacts artifacts: 'coverage.xml, reports/junit.xml', allowEmptyArchive: true
