@@ -9,7 +9,7 @@
 3. Ruff lint.
 4. Pytest with coverage, JUnit XML, and archived artifacts.
 5. Optional SonarQube scan.
-6. Docker build with inline cache.
+6. Docker build using the agent's local BuildKit cache.
 7. Trivy image scan; fails the build on HIGH/CRITICAL when Trivy is installed.
 8. Registry push/tag when `IMAGE_REGISTRY` is supplied.
 9. Optional Kubernetes deploy when `DEPLOY_TO_K8S` is enabled.

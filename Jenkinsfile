@@ -111,8 +111,6 @@ pipeline {
         sh '''
           set -eux
           docker build \
-            --build-arg BUILDKIT_INLINE_CACHE=1 \
-            --cache-from ${IMAGE}:latest \
             -t ${IMAGE}:${TAG} \
             -t ${IMAGE}:latest \
             .
@@ -137,7 +135,7 @@ pipeline {
       steps {
         sh '''
           set -eu
-          if [ -n "${IMAGE_REGISTRY}" ]; then
+          if [ -n "${IMAGE_REGISTRY:-}" ]; then
             REF="${IMAGE_REGISTRY}/${IMAGE}:${TAG}"
             docker tag ${IMAGE}:${TAG} "${REF}"
             docker push "${REF}"
@@ -162,7 +160,7 @@ pipeline {
           if [ "$CONTEXT" = kind-devplane-kind ] && command -v kind >/dev/null 2>&1; then
             IMAGE_REF="${IMAGE}:${TAG}"
             kind load docker-image "$IMAGE_REF" --name devplane-kind
-          elif [ -z "$IMAGE_REGISTRY" ]; then
+          elif [ -z "${IMAGE_REGISTRY:-}" ]; then
             echo "Set IMAGE_REGISTRY for deployment outside the local devplane-kind cluster" >&2
             exit 1
           fi
