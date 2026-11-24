@@ -6,6 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 _test_db = Path(tempfile.gettempdir()) / f"devplane_test_{os.getpid()}.db"
+os.environ["APP_ENV"] = "test"
+os.environ["DEMO_MODE"] = "false"
 os.environ["DATABASE_URL"] = f"sqlite:///{_test_db.as_posix()}"
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 os.environ["PROVISIONING_DELAY_SECONDS"] = "0"

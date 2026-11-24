@@ -47,6 +47,15 @@ def test_demo_mode_explicitly_allows_demo_bootstrap_passwords():
     assert settings.demo_mode is True
 
 
+def test_production_rejects_demo_mode():
+    with pytest.raises(ValidationError, match="DEMO_MODE"):
+        Settings(
+            app_env="Production",
+            demo_mode=True,
+            secret_key="long-random-test-key-for-hosted-settings",
+        )
+
+
 def test_unsafe_jwt_algorithms_are_rejected_in_every_environment():
     with pytest.raises(ValidationError, match="ALGORITHM"):
         Settings(app_env="development", algorithm="none")

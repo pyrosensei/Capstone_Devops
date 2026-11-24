@@ -2,6 +2,17 @@
 
 This walkthrough takes about 10–15 minutes. Use the Python and SQLite demo for a laptop presentation. The Compose and kind commands are for demonstrating the infrastructure separately.
 
+## Hosted browser walkthrough
+
+Open the HTTPS URL provided by the project owner and sign in with the developer credentials shared privately. The hosted service and its URL are pending verification.
+
+1. Open **Catalog** and create a service with a unique name such as `checkout-demo` and a repository URL such as `https://github.com/example/checkout-api`.
+2. Open **Delivery**, select your service, and create an ephemeral environment named `review-preview`. Refresh status until it shows `running`.
+3. Release `v1.0.0` with the rolling strategy. Wait for success, then release `v2.0.0` with blue-green. Use the rollback action on `v2.0.0` and refresh to see `v1.0.0` restored in a new history entry.
+4. Open **Flags & secrets**, select your service, and add an enabled `new-checkout` flag. Sign out and back in to see the saved changes.
+
+Preview provisioning, releases, and rollback simulate execution. PostgreSQL stores their state, the release history, flags, and audit events. A private admin account can verify the audit log.
+
 ## 0. Prepare
 
 From the repository root, activate the Python 3.11 environment and start the local demo:

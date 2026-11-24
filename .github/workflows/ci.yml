@@ -13,6 +13,20 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - database: sqlite
+            compose_files: docker-compose.yml
+            compose_profiles: ''
+          - database: postgres
+            compose_files: docker-compose.yml:docker-compose.postgres.yml
+            compose_profiles: postgres
+    name: Verify (${{ matrix.database }})
+    env:
+      COMPOSE_FILE: ${{ matrix.compose_files }}
+      COMPOSE_PROFILES: ${{ matrix.compose_profiles }}
 
     steps:
       - uses: actions/checkout@v6
@@ -57,6 +71,14 @@ jobs:
         run: |
           python scripts/smoke.py --require-redis
           docker compose ps --status running --services worker | grep -Fx worker
+
+      - name: Verify PostgreSQL data survives a restart
+        if: matrix.database == 'postgres'
+        run: |
+          docker compose restart api
+          curl --fail --retry 15 --retry-all-errors --retry-delay 2 http://127.0.0.1:8000/health/ready
+          docker compose exec -T postgres psql -U devplane -d devplane -Atc \
+            "SELECT EXISTS (SELECT 1 FROM deployments WHERE is_rollback AND status = 'succeeded')" | grep -Fx t
 
       - name: Show service status and logs on failure
         if: ${{ failure() && steps.credentials.outcome == 'success' }}

@@ -20,14 +20,16 @@
     <section id="login-panel">
       <h2>Sign in</h2>
       <form id="login-form">
-        <label>Email <input name="email" value="admin@devplane.local" required /></label>
-        <label>Password <input name="password" type="password" value="admin123" required /></label>
+        <label>Email <input name="email" autocomplete="username"{% if demo_mode %} value="admin@devplane.local"{% endif %} required /></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password"{% if demo_mode %} value="admin123"{% endif %} required /></label>
         <button type="submit">Login</button>
       </form>
+      {% if demo_mode %}
       <p class="hint">
         Seeded admin: <code>admin@devplane.local / admin123</code><br />
         Seeded developer: <code>dev@devplane.local / dev123</code>
       </p>
+      {% endif %}
       <p class="hint">API docs: <a href="/docs">/docs</a> &middot; metrics: <a href="/metrics">/metrics</a></p>
     </section>
 
