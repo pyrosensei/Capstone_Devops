@@ -418,13 +418,13 @@ Prior infrastructure validation on Windows with Docker Desktop and kind:
 - Protected scrape endpoint: Prometheus targets report `up` while `/metrics` returns `401` without the bearer token.
 - Screenshots of the UI, Grafana dashboard, Prometheus targets and the Argo CD Application are in `docs/screenshots/` (see `docs/screenshots/README.md`).
 
-The GitHub Actions workflow is ready for its first hosted run. The component checks have been run locally against the rebuilt Compose stack.
+On 24 November 2026, the Linux suite passed 43 tests with 93% application coverage. GitHub Actions passed lint, tests, and the SQLite and PostgreSQL Docker Compose smoke tests. PostgreSQL retained rollback history after an API restart. Jenkins also passed its local Pipeline-from-SCM run. [GitHub Actions run](https://github.com/pyrosensei/Capstone_Devops/actions/runs/45358919775) · [Jenkins validation](docs/evidence/jenkins-local.md)
 
 On 23 November 2026, Docker Desktop rebuilt the API and worker from the current workspace. The API and Redis reported healthy, the worker was running, and the API served JavaScript identical to the workspace copy. The live smoke test passed through simulated deployment, rollback, and audit. The rebuilt API returned HTTP 401 for an anonymous metrics scrape and HTTP 200 with the configured bearer token.
 
 The existing kind deployment also passed the smoke test through ingress. Its API reported healthy PostgreSQL and Redis connections, the ops endpoint returned live Kubernetes pod data, and an anonymous metrics request returned HTTP 401. This deployment still had six API pods. The updated autoscaling configuration and Argo CD sync against `main` still need a fresh deployment check.
 
-On 23 November 2026, the existing Jenkins controller started, but the `devplane-ci` job had no saved Pipeline definition or build history. The controller was stopped after the check. A successful Jenkins pipeline run and live SonarQube and Trivy results are still pending. The cloud integrations are templates. See [the Jenkins evidence](docs/evidence/jenkins-local.md).
+The successful Jenkins run kept its image tags local. SonarQube, Trivy, and the optional Kubernetes deploy stage were skipped. [Jenkins stage results](docs/evidence/jenkins-local.md)
 
 ## Limitations
 

@@ -228,7 +228,7 @@ The lightweight Windows demo runs with Python 3.11 and disposable SQLite. Its li
 
 ### 7.5 Hosted CI and optional integrations
 
-GitHub Actions verified lint, tests, and the SQLite Docker Compose smoke test on commit `553d804`. The workflow also defines a PostgreSQL run with an API restart and a persisted rollback check. The Render Blueprint defines a Docker web service backed by a separate PostgreSQL project and gates automatic deployment on GitHub checks. See the [hosted CI run](https://github.com/pyrosensei/Capstone_Devops/actions/runs/45129141748) and [Jenkins evidence](docs/evidence/jenkins-local.md).
+GitHub Actions passed lint, tests and Docker Compose smoke checks against SQLite and PostgreSQL on commit `293801e`. The PostgreSQL job verified that the rollback record survived an API restart. An authenticated local Jenkins Pipeline-from-SCM run passed lint, tests and image build. The Render Blueprint defines a Docker web service backed by a separate PostgreSQL project and gates automatic deployment on GitHub checks. [GitHub Actions run](https://github.com/pyrosensei/Capstone_Devops/actions/runs/45358919775) · [Jenkins evidence](docs/evidence/jenkins-local.md)
 
 An earlier kind run installed Argo CD v3.5.6 and recorded the `devplane` Application as `Synced` / `Healthy` at the revision in [the sync evidence](docs/evidence/argocd-sync.md). The current Application tracks `main`. A fresh sync still needs a live cluster check.
 
