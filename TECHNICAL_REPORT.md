@@ -228,7 +228,7 @@ The lightweight Windows demo runs with Python 3.11 and disposable SQLite. Its li
 
 ### 7.5 Hosted CI and optional integrations
 
-The GitHub Actions workflow checks Python and JavaScript, runs pytest with coverage, and builds and smoke-tests the Docker Compose stack on a hosted Linux runner. The first hosted execution is pending. Jenkins, SonarQube, Trivy, and the cloud provider templates are optional. Jenkins started locally, but the existing job had no saved Pipeline definition. SonarQube and Trivy have no live run recorded.
+GitHub Actions verified lint, tests, and the SQLite Docker Compose smoke test on commit `553d804`. The workflow also defines a PostgreSQL run with an API restart and a persisted rollback check. The Render Blueprint defines a Docker web service backed by a separate PostgreSQL project and gates automatic deployment on GitHub checks. See the [hosted CI run](https://github.com/pyrosensei/Capstone_Devops/actions/runs/45129141748) and [Jenkins evidence](docs/evidence/jenkins-local.md).
 
 An earlier kind run installed Argo CD v3.5.6 and recorded the `devplane` Application as `Synced` / `Healthy` at the revision in [the sync evidence](docs/evidence/argocd-sync.md). The current Application tracks `main`. A fresh sync still needs a live cluster check.
 

@@ -62,7 +62,7 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY must not be empty")
 
         env = self.app_env.strip().lower()
-        if env in _DEVELOPMENT_ENVIRONMENTS:
+        if self.is_development:
             return self
 
         normalized = key.lower()
@@ -77,6 +77,9 @@ class Settings(BaseSettings):
                 'python -c "import secrets; print(secrets.token_urlsafe(48))"'
             )
 
+        if env in {"production", "prod"} and self.demo_mode:
+            raise ValueError("DEMO_MODE must be false in production")
+
         if not self.demo_mode:
             for name, password in (
                 ("BOOTSTRAP_ADMIN_PASSWORD", self.bootstrap_admin_password),
@@ -89,6 +92,10 @@ class Settings(BaseSettings):
                         f"when APP_ENV={self.app_env!r} and DEMO_MODE is false"
                     )
         return self
+
+    @property
+    def is_development(self) -> bool:
+        return self.app_env.strip().lower() in _DEVELOPMENT_ENVIRONMENTS
 
     @property
     def cors_origin_list(self) -> list[str]:

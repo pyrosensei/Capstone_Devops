@@ -19,6 +19,7 @@ Run the capstone demo with Python and SQLite, or run the API, worker, and Redis 
 - [API surface](#api-surface)
 - [Security](#security)
 - [Demo flow](#demo-flow)
+- [Hosted deployment](#hosted-deployment)
 - [Repository layout](#repository-layout)
 - [Validation status](#validation-status)
 - [Limitations](#limitations)
@@ -342,6 +343,14 @@ Public registration always creates a `developer`. The request schema rejects a `
 - Blocking image scanning with Trivy in Jenkins (HIGH/CRITICAL) and optional SonarQube.
 
 Details: [docs/security.md](docs/security.md).
+
+## Hosted deployment
+
+The [Render Blueprint](render.yaml) defines a free Docker web service with `/health/ready` as its health check. Connect the GitHub repository to Render and use the Blueprint on `main`. Automatic deployments wait for the linked revision's GitHub checks to pass. [Render deployment documentation](https://render.com/docs/deploys)
+
+Create a fresh Neon PostgreSQL database for the review. In Render, set `DATABASE_URL` to the direct TLS connection string and supply distinct admin and developer email addresses and strong passwords as the Blueprint's private bootstrap values. The direct connection supports Alembic's session-level advisory lock. Render generates the JWT signing key. Bootstrap creates accounts only on their first startup, so changing a password setting after an account exists requires a separate password rotation. [Neon connection guide](https://neon.com/docs/connect/connect-from-any-app)
+
+Use the assigned HTTPS URL and follow the [browser walkthrough](docs/demo.md#hosted-browser-walkthrough). Verify the reviewer's permissions, then restart the service and check the same release and rollback history. Record the deployed commit and share the developer credentials privately. The free service may take about a minute to wake after inactivity. The separate database preserves state across web-service restarts. [Render free service limits](https://render.com/docs/free)
 
 ## Demo flow
 

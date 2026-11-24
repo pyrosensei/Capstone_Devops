@@ -33,7 +33,7 @@ def seed(db: Session) -> None:
         db.add(developer)
 
     db.flush()
-    if not db.query(CatalogService).first() and admin:
+    if not db.query(CatalogService).first():
         db.add(
             CatalogService(
                 name="payments-api",
@@ -41,7 +41,7 @@ def seed(db: Session) -> None:
                 repo_url="https://github.com/example/payments-api",
                 tech_stack="FastAPI, PostgreSQL",
                 status="active",
-                owner_id=admin.id,
+                owner_id=(admin if settings.demo_mode or settings.is_development else developer).id,
             )
         )
     db.commit()

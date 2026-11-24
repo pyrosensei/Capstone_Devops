@@ -46,8 +46,12 @@ def wait_for_status(fetch, expected: str) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
-    parser.add_argument("--email", default="admin@devplane.local")
-    parser.add_argument("--password", default="admin123")
+    parser.add_argument("--email", default=os.getenv("DEVPLANE_SMOKE_EMAIL", "admin@devplane.local"))
+    parser.add_argument(
+        "--password",
+        default=os.getenv("DEVPLANE_SMOKE_PASSWORD", "admin123"),
+        help="Login password. For hosted runs, set DEVPLANE_SMOKE_PASSWORD in the environment.",
+    )
     parser.add_argument("--require-redis", action="store_true", help="Require a healthy Redis connection")
     parser.add_argument("--skip-metrics", action="store_true", help="Skip the Prometheus scrape")
     args = parser.parse_args()

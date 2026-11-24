@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
 from app.core.deps import get_current_user
+from app.core.exceptions import ForbiddenError
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserRead
@@ -12,7 +14,14 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserRead, status_code=201)
-def register(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
+def register(
+    payload: UserCreate,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+):
+    if not (settings.is_development or settings.demo_mode):
+        raise ForbiddenError("Self-registration is disabled")
     return AuthService(db).register(payload, actor_ip=request.client.host if request.client else "")
 
 
